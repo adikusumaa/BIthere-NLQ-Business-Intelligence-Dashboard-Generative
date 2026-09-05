@@ -1,171 +1,143 @@
-BIthere
+# 🚀 BIthere
+**AI Business Intelligence Analyst**  
+*Natural Language Query · Auto-Dashboard · Actionable Insights · Multi-Agent Orchestration · Big Data Optimization*
 
-AI Business Intelligence Analyst (NLQ + Auto-Dashboard + Actionable Insights + Caching + Query Optimization)
-Nama Project
-AI Business Intelligence Analyst — Platform analisis data berbasis bahasa natural dengan kemampuan auto-dashboard, rekomendasi aksi, optimasi caching, dan optimasi query untuk big data.
+---
 
-Tujuan & Keunggulan
-Natural Language Query (NLQ)
-Pengguna non-teknis dapat mengajukan pertanyaan bisnis dalam bahasa Indonesia/Inggris biasa, tanpa perlu menulis SQL atau memahami struktur database. Contoh: "Berapa total penjualan per kategori bulan lalu?" atau "Tunjukkan tren stok barang yang hampir habis di gudang Jakarta."
+## 📖 Project Description
 
-Dynamic Database Connector
-Mendukung berbagai sumber data, baik SQL (PostgreSQL, MySQL) maupun NoSQL (MongoDB). Arsitektur menggunakan abstraction layer sehingga penambahan konektor baru tidak mengubah logika inti.
+**BIthere** adalah platform analisis data berbasis kecerdasan buatan yang memungkinkan pengguna non-teknis untuk berinteraksi dengan database menggunakan **bahasa alami** (Indonesia/Inggris). Sistem ini tidak hanya menjawab pertanyaan, tetapi juga secara otomatis menghasilkan dashboard interaktif, memberikan rekomendasi aksi bisnis, serta dioptimalkan untuk performa tinggi melalui arsitektur *multi-agent* dan strategi *caching* cerdas.
 
-Multi-Agent Orchestration (LangChain/LangGraph)
-Sistem terdiri dari beberapa agent yang bekerja sama:
+### 🎯 Tujuan & Keunggulan Utama
 
-Planner Agent → memahami maksud pertanyaan, memecah menjadi subtask.
+- **Natural Language Query (NLQ)**  
+  Pengguna cukup bertanya seperti *"Berapa total penjualan per kategori bulan lalu?"* atau *"Tunjukkan tren stok barang yang hampir habis di gudang Jakarta"*. Sistem menerjemahkan pertanyaan tersebut menjadi query SQL tanpa intervensi manual.
 
-Query Generator Agent → menghasilkan query SQL/NoSQL sesuai skema.
+- **Dynamic Database Connector**  
+  Mendukung berbagai sumber data (PostgreSQL, MySQL, MongoDB) melalui *abstraction layer* yang memungkinkan penambahan konektor baru tanpa mengubah logika inti aplikasi.
 
-Validator Agent → memeriksa keamanan dan sintaks query.
-
-Query Optimizer Agent → menulis ulang query untuk efisiensi (index, partisi, agregasi).
-
-Insight Analyzer Agent → merangkum hasil data menjadi insight bisnis.
-
-Dashboard Builder Agent → membuat konfigurasi dashboard (JSON) dan memanggil Metabase API.
-
-Report Sender Agent → mengirim laporan/insight ke Slack atau Email melalui MCP tools.
-
-RAG (Retrieval-Augmented Generation) untuk Metadata & Business Glossary
-
-Vector database menyimpan embedding dari: skema tabel/koleksi, deskripsi kolom, query historis, dan istilah bisnis.
-
-Retrieval hybrid (semantic + keyword) untuk menemukan konteks relevan sebelum query digenerate.
-
-Meningkatkan akurasi NLQ terhadap struktur database yang kompleks.
-
-Auto-Dashboard dengan Metabase
-
-Dashboard Builder Agent menghasilkan konfigurasi visualisasi (chart, filter, layout) dalam format JSON.
-
-Backend memanggil Metabase API untuk membuat dashboard/card secara otomatis.
-
-Frontend menampilkan dashboard melalui embed URL/iframe.
-
-Adapter visualisasi memungkinkan pergantian ke Apache Superset atau ECharts tanpa mengubah logika inti.
-
-Optimasi Embedding & Token
-
-Pengujian beberapa model embedding (text-embedding-3-small, bge, dsb.) untuk akurasi retrieval metadata.
-
-Token reduction: output JSON terstruktur, prompt compression, caching query & insight, chunking metadata yang efisien.
-
-Optimasi Caching (Komponen Penting untuk Big Data)
-
-Query Result Cache → Simpan hasil query ke Redis untuk pertanyaan yang sama/berulang. Key: hash dari prompt + parameter query + versi skema.
-
-Embedding Cache → Cache embedding metadata/tabel/istilah agar tidak hit API LLM berkali-kali.
-
-LLM Response Cache → Cache jawaban akhir untuk pertanyaan yang identik (semantic cache).
-
-Dashboard Config Cache → Simpan konfigurasi JSON dashboard yang sudah dibuat, hindari regenerate.
-
-Metadata Cache → Cache schema database & business glossary di Redis untuk akses cepat.
-
-Tools: Redis sebagai cache utama, TTL untuk invalidasi berkala, dan mekanisme cache invalidation saat ada perubahan skema/data.
-
-Optimasi Performa Query untuk Big Data
-
-Indexing & Partitioning → Memanfaatkan index pada kolom yang sering difilter, partisi tabel berdasarkan waktu/kategori untuk mengurangi scan data.
-
-Materialized Views & Pre-agregasi → Membuat ringkasan data (agregat) yang sering diakses agar query tidak memproses data mentah setiap saat.
-
-Query Rewriting → Agent Optimizer menulis ulang query dengan EXPLAIN/ANALYZE untuk memilih join order, filter pushdown, dan agregasi awal.
-
-OLAP Engine → Opsional: menggunakan engine analitik kolom (ClickHouse, DuckDB) untuk query cepat pada data besar.
-
-Sampling Data → Untuk eksplorasi awal, gunakan sampling agar hasil cepat, kemudian query penuh jika diminta.
-
-Incremental Caching → Cache hasil query yang sering dipakai dan perbarui secara bertahap saat data berubah.
-
-MCP Server untuk Integrasi Eksternal
-
-Menyediakan tools seperti: send_slack, send_email, render_dashboard, fetch_data.
-
-Memungkinkan agent memanggil layanan eksternal secara aman dan terkontrol.
-
-Frontend Chat + Dashboard
-
-Aplikasi web (React/Vue) dengan antarmuka chat untuk NLQ.
-
-Panel dashboard terpisah untuk menampilkan hasil visual dari Metabase.
-
-Dukungan streaming response untuk pengalaman interaktif.
-
-Cloud-Ready & Scalable
-
-Backend menggunakan FastAPI, containerized dengan Docker.
-
-Siap deploy ke Azure/AWS/GCP.
-
-Arsitektur modular memungkinkan scaling per komponen.
-
-Alur Kerja Singkat
-Pengguna mengetik pertanyaan di chat.
-
-Planner Agent menganalisis maksud dan kebutuhan visualisasi.
-
-RAG mencari metadata relevan (tabel, kolom, istilah).
-
-Cek cache: jika query serupa pernah dijalankan, ambil hasil dari Redis.
-
-Jika tidak ada cache, Query Generator membuat query, Validator memastikan keamanan, dan Query Optimizer menulis ulang untuk performa (index, partisi, pre-agregasi).
-
-Data dieksekusi dari sumber database (besar/kecil) dengan strategi optimal (materialized view, sampling, OLAP).
-
-Insight Analyzer merangkum hasil menjadi insight.
-
-Jika perlu visual, Dashboard Builder membuat dashboard di Metabase (atau ambil dari cache jika sudah ada).
-
-Jika diminta, Report Sender mengirim laporan ke Slack/Email.
-
-Jawaban dan/atau dashboard ditampilkan ke pengguna.
-
-Cakupan Persyaratan Lowongan
-Project ini mencakup hampir semua kebutuhan dari lowongan EY AI Engineer dan Bukalapak Junior AI Engineer, antara lain:
-
-Natural Language Query (NLQ) agent
-
-Agentic AI workflows
-
-Pengembangan frontend chat & dashboard
-
-Integrasi AI dengan data platform & API
-
-Penggunaan LLM, RAG, embedding, vector search
-
-Cloud deployment, containerization, FastAPI
-
-MCP, LangChain/LangGraph, optimasi token
-
-Visualisasi data & pelaporan
-
-Optimasi caching dan performa query untuk big data (nilai tambah)
-
-
-
-Nama: AI Business Intelligence Analyst
-
-Dataset: Fintech / Risk (data transaksi, pinjaman, risiko kredit, dsb.)
-
-Skala Data: 1–2 juta baris (simulasi big data)
-
-Bahasa NLQ: Multi-bahasa (Indonesia & Inggris)
-
-Autentikasi: Single user (MVP)
-
-Output Laporan: PDF + Link/Embed Dashboard
-
-Deployment: Lokal via Docker Compose (semua service termasuk Metabase)
-
-Metabase: Di-setup dari nol di dalam Docker Compose
-
-Mode Jawaban: Streaming chat (profesional, interaktif)
-
-MCP Tools: Wajib send_slack, send_email, render_dashboard, fetch_data + tools tambahan jika diperlukan (misal export_pdf, notify_webhook)
-
-Latensi: Optimal (target secepat mungkin dengan caching & optimasi query)
-
-Komponen Utama: Multi-agent (Planner, Query Generator, Validator, Query Optimizer, Insight Analyzer, Dashboard Builder, Report Sender), RAG metadata, Redis caching, dynamic DB connector (PostgreSQL/MySQL/MongoDB), Metabase adapter, frontend React/Vue + FastAPI backend, Docker Compose.
+- **Multi-Agent Orchestration (LangChain/LangGraph)**  
+  Sistem mengadopsi paradigma *agentic AI* di mana beberapa agen cerdas berkolaborasi secara sinkron:
+  - **Planner Agent** → Menganalisis maksud pertanyaan dan memecahnya menjadi subtask.
+  - **Query Generator Agent** → Menghasilkan query SQL sesuai skema database.
+  - **Validator Agent** → Memeriksa keamanan dan sintaks query.
+  - **Query Optimizer Agent** → Menulis ulang query untuk efisiensi (index, partisi, agregasi).
+  - **Insight Analyzer Agent** → Merangkum hasil data menjadi insight bisnis yang strategis.
+  - **Dashboard Builder Agent** → Membuat konfigurasi dashboard (JSON) dan terintegrasi dengan Metabase API.
+  - **Report Sender Agent** → Mengirim laporan/insight ke Slack atau Email melalui MCP tools.
+
+- **RAG (Retrieval-Augmented Generation) untuk Metadata & Business Glossary**  
+  Memanfaatkan **Pinecone** (vector DB cloud) untuk menyimpan embedding dari skema tabel, deskripsi kolom, query historis, dan istilah bisnis. Proses *hybrid retrieval* (semantic + keyword) memastikan konteks yang paling relevan selalu tersedia sebelum query di-generate, meningkatkan akurasi NLQ secara signifikan. Embedding menggunakan **OpenAI text-embedding-3-small** yang murah dan cepat.
+
+- **Auto-Dashboard dengan Metabase**  
+  Dashboard Builder Agent secara otomatis menghasilkan visualisasi (chart, filter, layout) dalam format JSON dan memanggil Metabase API untuk membuat dashboard/card secara instan. Frontend menampilkannya melalui embed URL/iframe, dengan adapter yang memungkinkan migrasi ke Apache Superset atau ECharts tanpa mengubah logika inti.
+
+- **Optimasi Token & Embedding**  
+  Menggunakan model embedding efisien (text-embedding-3-small) dan menerapkan *token reduction* melalui output JSON terstruktur, *prompt compression*, dan *chunking* metadata yang efisien.
+
+### ⚡ Optimasi Performa & Caching (Nilai Tambah Utama)
+
+Sistem ini dirancang untuk respons cepat dengan strategi caching komprehensif:
+
+- **Query Result Cache** → Menyimpan hasil query ke Redis dengan key berbasis hash dari prompt, parameter, dan versi skema.
+- **Embedding & LLM Response Cache** → Menghindari pemanggilan API embedding/LLM berulang untuk pertanyaan identik (*semantic cache*).
+- **Dashboard Config Cache** → Menyimpan konfigurasi JSON dashboard yang sudah dibuat untuk mencegah regenerasi.
+- **Metadata Cache** → Menyimpan skema dan business glossary di Redis untuk akses cepat.
+
+### 🔌 MCP Server & Integrasi Eksternal
+
+Menyediakan *tools* standar seperti `fetch_data`, `send_slack`, `send_email`, `render_dashboard`, dan `export_pdf` yang memungkinkan agen memanggil layanan eksternal secara aman dan terkontrol.
+
+---
+
+## 🏗️ System Architecture & Deployment
+
+Proyek ini menerapkan arsitektur **hybrid** (lokal + cloud) yang ringan dan hemat biaya. Komponen berat (LLM, embedding, vector DB) menggunakan layanan cloud dengan free tier, sementara komponen pendukung berjalan di Docker lokal.
+
+### Tabel Komponen Teknologi
+
+| Komponen | Teknologi | Keterangan |
+|----------|-----------|-------------|
+| **LLM Chat** | Groq API (Llama 3.3 70B) | Free tier, streaming cepat, latensi rendah |
+| **Embedding** | OpenAI text-embedding-3-small | API murah, akurasi tinggi |
+| **Vector DB** | Pinecone | Cloud, tanpa beban lokal, skalabel |
+| **Database Sumber** | Supabase (PostgreSQL) | Cloud, 100rb baris (MVP) |
+| **Cache** | Redis | Docker lokal, ringan (~100MB) |
+| **Backend** | FastAPI + LangGraph | Docker lokal, logika agent dan orchestration |
+| **Frontend** | React + Vite | Docker lokal, antarmuka chat & dashboard |
+| **Visualisasi** | Metabase | Docker lokal, terhubung ke Supabase via connection string |
+| **PDF Report** | WeasyPrint | Konversi HTML → PDF untuk laporan |
+| **MCP Tools** | Custom tool server (Python) | fetch_data, send_slack, send_email, render_dashboard, export_pdf |
+| **Auth** | JWT sederhana | Single user (MVP) |
+| **Streaming** | SSE (Server-Sent Events) | Chat streaming real-time |
+| **Deployment** | Docker Compose | Backend, frontend, Redis, Metabase |
+
+> **Catatan Biaya:** Groq, Pinecone, dan OpenAI menyediakan free tier yang cukup untuk MVP. Biaya operasional sangat rendah, bahkan mendekati nol untuk penggunaan development dan demo.
+
+Dengan arsitektur ini, beban komputasi berat (LLM inference, embedding, vector search) sepenuhnya ditangani oleh layanan cloud, sementara komponen ringan dan caching berjalan di lokal. Hal ini memungkinkan pengembangan cepat, deployment fleksibel, dan biaya infrastruktur minimal.
+
+---
+
+### 🧠 Alur Kerja Singkat (End-to-End)
+
+1. **Pengguna** mengetik pertanyaan di chat (frontend React).
+2. **Planner Agent** (backend FastAPI + LangGraph) menganalisis maksud dan kebutuhan visualisasi.
+3. **RAG** mencari metadata relevan di Pinecone (vektor embedding dari OpenAI).
+4. Sistem mengecek **cache Redis** (Query, Embedding, Dashboard Config) untuk menghindari komputasi ulang.
+5. Jika tidak ada cache, **Query Generator** membuat SQL → **Validator** memeriksa keamanan → **Optimizer** menulis ulang untuk performa.
+6. Data dieksekusi dari **Supabase** (PostgreSQL) dan hasilnya dikembalikan.
+7. **Insight Analyzer** merangkum hasil menjadi insight bisnis (dengan bantuan Groq LLM).
+8. **Dashboard Builder** membuat/ mengambil dashboard dari cache dan berinteraksi dengan **Metabase API**.
+9. Jika diminta, **Report Sender** mengirim laporan ke Slack/Email (atau export PDF via WeasyPrint).
+10. Jawaban dan dashboard ditampilkan secara **streaming real-time** ke pengguna melalui SSE.
+
+---
+
+### 🛠️ Tech Stack Ringkasan
+
+| Kategori | Teknologi |
+|----------|-----------|
+| **LLM** | Groq (Llama 3.3 70B) |
+| **Embedding** | OpenAI text-embedding-3-small |
+| **Vector DB** | Pinecone |
+| **Database** | Supabase (PostgreSQL) |
+| **Cache** | Redis |
+| **Backend** | FastAPI + LangGraph |
+| **Frontend** | React + Vite |
+| **Visualisasi** | Metabase |
+| **PDF Generator** | WeasyPrint |
+| **MCP Tools** | Custom Python Server |
+| **Auth** | JWT |
+| **Streaming** | SSE |
+| **Deployment** | Docker Compose |
+
+
+bithere/
+├── backend/
+│   ├── app/
+│   │   ├── agents/               # LangGraph agents
+│   │   ├── api/                  # FastAPI routes
+│   │   ├── connectors/           # Database connectors (PostgreSQL, MySQL, MongoDB)
+│   │   ├── core/                 # Config, logging, auth
+│   │   ├── mcp/                  # MCP tool server
+│   │   ├── rag/                  # RAG pipeline, embedding, Pinecone client
+│   │   ├── services/             # Cache (Redis), Metabase adapter, report generator
+│   │   └── main.py               # FastAPI entry point
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── src/
+│   │   ├── components/           # Chat, Dashboard, Login
+│   │   ├── pages/
+│   │   ├── services/             # API calls, SSE stream
+│   │   └── App.jsx
+│   ├── package.json
+│   └── Dockerfile
+├── docker-compose.yml            # Backend, frontend, Redis, Metabase
+├── .env.example                  # Template environment variable
+├── README.md
+└── scripts/                      # Seed data, setup Pinecone, setup Metabase
+
+---
+
+> **📌 Catatan:** Bagian ini adalah **Deskripsi Project** dan **Arsitektur Deployment** berdasarkan komponen terbaru. Untuk bagian selanjutnya (Panduan Instalasi, Konfigurasi Environment, Struktur Folder, dan Cara Menjalankan) akan menyusul di update README berikutnya.

@@ -1,2 +1,15 @@
+# Virtual Environment
 /venv/
-/.env/
+venv/
+
+# Environment Variables (secrets)
+.env
+/.env
+
+# Large Data Files (CSV) - JANGAN commit ke Git!
+data/*.csv
+data/*.json
+
+# Python cache
+__pycache__/
+*.pyc
