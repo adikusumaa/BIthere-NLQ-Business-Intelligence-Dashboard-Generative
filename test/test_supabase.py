@@ -43,10 +43,8 @@ def preview_table(table_name, limit=5):
 print("[PROCESS] Testing Supabase connection and data...")
 print("=" * 60)
 
-# Daftar tabel yang akan diuji
 tables = ['users', 'cards', 'mcc_codes', 'transactions', 'fraud_labels']
 
-# 1. Cek jumlah baris per tabel
 print("[PROCESS] Checking row counts...")
 row_counts = {}
 for table in tables:
@@ -55,7 +53,6 @@ for table in tables:
 
 print("=" * 60)
 
-# 2. Preview 5 baris pertama dari setiap tabel
 print("[PROCESS] Previewing data...")
 for table in tables:
     preview_table(table, limit=5)
