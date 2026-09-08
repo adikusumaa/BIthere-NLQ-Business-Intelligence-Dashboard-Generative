@@ -4,9 +4,11 @@ FastAPI entry point for BIthere API.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.routes import auth 
 
 from app.core.config import settings
 from app.core.logging import logger
+
 
 
 app = FastAPI(
@@ -23,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router) 
 
 @app.get("/", tags=["Health"])
 async def root() -> dict:
