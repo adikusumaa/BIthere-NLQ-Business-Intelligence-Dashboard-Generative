@@ -7,6 +7,27 @@ import logging
 import sys
 
 
+PROCESS_LEVEL = 25
+SUCCESS_LEVEL = 35
+
+logging.addLevelName(PROCESS_LEVEL, "PROCESS")
+logging.addLevelName(SUCCESS_LEVEL, "SUCCESS")
+
+
+def _process(self, message, *args, **kwargs):
+    if self.isEnabledFor(PROCESS_LEVEL):
+        self._log(PROCESS_LEVEL, message, args, **kwargs)
+
+
+def _success(self, message, *args, **kwargs):
+    if self.isEnabledFor(SUCCESS_LEVEL):
+        self._log(SUCCESS_LEVEL, message, args, **kwargs)
+
+
+logging.Logger.process = _process
+logging.Logger.success = _success
+
+
 class BIthereFormatter(logging.Formatter):
     """
     Custom formatter that outputs logs in professional format.

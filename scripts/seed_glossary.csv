@@ -1,0 +1,9 @@
+term,definition,category
+fraud,Transaksi yang terindikasi penipuan,fraud_label
+chargeback,Pengembalian dana oleh bank karena transaksi disengketakan,fraud_label
+high risk transaction,Transaksi dengan probabilitas fraud tinggi,fraud_label
+MCC,Merchant Category Code yang mengkategorikan jenis merchant,merchant
+merchant,Entitas yang menjual barang atau jasa,merchant
+card brand,Merek kartu seperti Visa atau Mastercard,card
+credit score,Skor kredit nasabah,user
+dark web,Status kartu yang bocor di dark web,card
