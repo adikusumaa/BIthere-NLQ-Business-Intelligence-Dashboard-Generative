@@ -4,10 +4,6 @@ from app.agents import validator
 from app.agents.validator import QueryValidationError, validate_query
 
 
-# =============================================================
-# HAPPY PATH
-# =============================================================
-
 def test_simple_select_passes():
     sql = "SELECT * FROM users LIMIT 10"
     assert validate_query(sql) == sql
@@ -36,7 +32,6 @@ def test_cte_query_passes():
     )
     assert validate_query(sql) == sql
 
-
 def test_lowercase_select_passes():
     sql = "select * from users limit 10"
     assert validate_query(sql) == sql
@@ -51,10 +46,6 @@ def test_trailing_semicolon_passes():
     sql = "SELECT 1;"
     assert validate_query(sql) == sql
 
-
-# =============================================================
-# EMPTY / WHITESPACE
-# =============================================================
 
 def test_empty_string_raises():
     with pytest.raises(QueryValidationError, match="Empty query"):
@@ -71,10 +62,6 @@ def test_whitespace_only_raises():
         validate_query("   \n\t  ")
 
 
-# =============================================================
-# LENGTH LIMIT
-# =============================================================
-
 def test_query_at_max_length_passes():
     """Exactly MAX_QUERY_LENGTH is allowed."""
     prefix = "SELECT '"
@@ -89,11 +76,6 @@ def test_query_exceeding_max_length_raises():
     sql = "SELECT '" + ("a" * validator.MAX_QUERY_LENGTH) + "'"
     with pytest.raises(QueryValidationError, match="exceeds"):
         validate_query(sql)
-
-
-# =============================================================
-# MUST START WITH SELECT / WITH
-# =============================================================
 
 def test_query_not_starting_with_select_raises():
     with pytest.raises(QueryValidationError, match="Only SELECT or WITH"):
@@ -115,10 +97,6 @@ def test_query_starting_with_comment_then_select_raises():
     with pytest.raises(QueryValidationError, match="Only SELECT or WITH"):
         validate_query(sql)
 
-
-# =============================================================
-# FORBIDDEN KEYWORDS
-# =============================================================
 
 def test_drop_raises():
     with pytest.raises(QueryValidationError, match="Forbidden keyword: DROP"):
@@ -201,11 +179,6 @@ def test_forbidden_keyword_lowercase_raises():
     with pytest.raises(QueryValidationError, match="Forbidden keyword: DROP"):
         validate_query("drop table users")
 
-
-# =============================================================
-# MULTI-STATEMENT
-# =============================================================
-
 def test_multiple_statements_raises():
     """Multi-statement without forbidden keywords is caught by statement check."""
     with pytest.raises(QueryValidationError, match="Multiple statements"):
@@ -229,22 +202,12 @@ def test_single_statement_with_trailing_semicolon_passes():
     sql = "SELECT 1;"
     assert validate_query(sql) == sql
 
-
-# =============================================================
-# RETURN VALUE
-# =============================================================
-
 def test_return_value_is_original_sql():
     """validate_query must return the ORIGINAL sql, not the normalized one."""
     sql = "select * from users"
     result = validate_query(sql)
     assert result == sql
     assert result != sql.upper()
-
-
-# =============================================================
-# EDGE CASES
-# =============================================================
 
 def test_only_select_no_table_passes():
     sql = "SELECT 1"
