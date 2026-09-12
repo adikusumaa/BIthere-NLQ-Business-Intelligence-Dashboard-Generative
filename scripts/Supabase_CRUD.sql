@@ -1,8 +1,3 @@
--- =============================================
--- BITHERE DATABASE SCHEMA
--- =============================================
-
--- Tabel 1: users
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT PRIMARY KEY,
     current_age INT,
@@ -20,7 +15,6 @@ CREATE TABLE IF NOT EXISTS users (
     num_credit_cards INT
 );
 
--- Tabel 2: cards
 CREATE TABLE IF NOT EXISTS cards (
     id BIGINT PRIMARY KEY,
     client_id BIGINT REFERENCES users(id),
@@ -37,7 +31,7 @@ CREATE TABLE IF NOT EXISTS cards (
     card_on_dark_web BOOLEAN
 );
 
--- Tabel 3: transactions
+
 CREATE TABLE IF NOT EXISTS transactions (
     id BIGINT PRIMARY KEY,
     date TIMESTAMP,
@@ -53,19 +47,18 @@ CREATE TABLE IF NOT EXISTS transactions (
     errors TEXT
 );
 
--- Tabel 4: fraud_labels
 CREATE TABLE IF NOT EXISTS fraud_labels (
     id BIGINT PRIMARY KEY REFERENCES transactions(id),
     fraud_label TEXT
 );
 
--- Tabel 5: mcc_codes (lookup)
+
 CREATE TABLE IF NOT EXISTS mcc_codes (
     mcc_code TEXT PRIMARY KEY,
     description TEXT
 );
 
--- Index untuk performa query
+
 CREATE INDEX idx_transactions_card_id ON transactions(card_id);
 CREATE INDEX idx_transactions_date ON transactions(date);
 CREATE INDEX idx_transactions_mcc ON transactions(mcc);

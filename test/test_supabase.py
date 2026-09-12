@@ -1,22 +1,30 @@
 import os
 import pandas as pd
+from pathlib import Path
 from supabase import create_client
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env dari root project (parent dari folder test/)
+ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT_DIR / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Prioritas: SERVICE_ROLE_KEY → fallback ke ANON_KEY
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("[ERROR] SUPABASE_URL or SUPABASE_KEY not found in .env file.")
+    print(f"[INFO] Looking for .env at: {ROOT_DIR / '.env'}")
+    print(f"[INFO] .env exists: {(ROOT_DIR / '.env').exists()}")
+    print(f"[INFO] SUPABASE_URL: {'SET' if SUPABASE_URL else 'NOT SET'}")
+    print(f"[INFO] SUPABASE_SERVICE_ROLE_KEY: {'SET' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else 'NOT SET'}")
+    print(f"[INFO] SUPABASE_ANON_KEY: {'SET' if os.getenv('SUPABASE_ANON_KEY') else 'NOT SET'}")
     exit(1)
 
 print("[PROCESS] Connecting to Supabase...")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def count_rows(table_name):
-    """Menghitung jumlah baris di tabel."""
     try:
         response = supabase.table(table_name).select("*", count="exact").execute()
         count = response.count
@@ -27,7 +35,6 @@ def count_rows(table_name):
         return None
 
 def preview_table(table_name, limit=5):
-    """Menampilkan beberapa baris pertama dari tabel."""
     try:
         response = supabase.table(table_name).select("*").limit(limit).execute()
         data = response.data
