@@ -70,3 +70,45 @@ def get_logger(name: str = "bithere") -> logging.Logger:
 
 
 logger = get_logger()
+
+
+# ---------------------------------------------------------------------
+# Convenience helpers
+# Dipakai oleh agent (llm.py, planner.py, dll) supaya cukup:
+#     from app.core.logging import log_info, log_error
+# tanpa harus membuat logger sendiri.
+# ---------------------------------------------------------------------
+
+def log_debug(message: str, *args, **kwargs) -> None:
+    """Log pesan di level DEBUG."""
+    logger.debug(message, *args, **kwargs)
+
+
+def log_info(message: str, *args, **kwargs) -> None:
+    """Log pesan di level INFO."""
+    logger.info(message, *args, **kwargs)
+
+
+def log_process(message: str, *args, **kwargs) -> None:
+    """Log pesan di level PROCESS (25) — untuk step-by-step proses agent."""
+    logger.process(message, *args, **kwargs)
+
+
+def log_success(message: str, *args, **kwargs) -> None:
+    """Log pesan di level SUCCESS (35) — untuk operasi yang berhasil."""
+    logger.success(message, *args, **kwargs)
+
+
+def log_warning(message: str, *args, **kwargs) -> None:
+    """Log pesan di level WARNING."""
+    logger.warning(message, *args, **kwargs)
+
+
+def log_error(message: str, *args, **kwargs) -> None:
+    """Log pesan di level ERROR."""
+    logger.error(message, *args, **kwargs)
+
+
+def log_critical(message: str, *args, **kwargs) -> None:
+    """Log pesan di level CRITICAL."""
+    logger.critical(message, *args, **kwargs)
