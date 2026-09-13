@@ -1,11 +1,18 @@
 """
-LangGraph orchestration for BIthere agent workflow.
+LangGraph orchestration for the BIthere agent workflow.
 
-Sesuai PRJ_BIthere.md:
-- Section 8.4 Alur Agent (Linear): 11 langkah
-- Section 8.5 Cache Flow: full hit / query hit / miss
-- Section 8.2 State fields: prompt, session_id, metadata_context,
-  generated_query, query_result, insight, dashboard_config, final_response
+Pipeline (per PRJ 8.4):
+    planner -> rag -> cache_check -> query_generator -> validator
+    -> optimizer -> executor -> analyze -> dashboard -> report -> response
+
+Cache flow (per PRJ 8.5):
+    - full hit  -> skip to response
+    - query hit -> skip to analyze (insight)
+    - miss      -> run full pipeline
+
+Note: Node "analyze" is used instead of "insight" to avoid a name
+collision with the AgentState key "insight" (LangGraph disallows
+nodes and state keys sharing the same name).
 
 MVP: no checkpointer (RedisSaver removed due to dependency conflicts).
 """
@@ -33,6 +40,8 @@ from app.core.logging import log_process, log_info, log_error
 
 
 class AgentState(TypedDict, total=False):
+    """Shared state flowing through all agent nodes."""
+
     prompt: str
     session_id: str
     plan: dict
@@ -50,19 +59,20 @@ class AgentState(TypedDict, total=False):
 
 
 def _build_cache_key(prompt: str) -> str:
-    """Hash prompt untuk cache key (PRJ 5.4: query:{hash})."""
-    return hashlib.md5(prompt.strip().lower().encode("utf-8")).hexdigest()
+    """Build a deterministic cache key from the user prompt (PRJ 5.4)."""
+    normalized = prompt.strip().lower()
+    return hashlib.md5(normalized.encode("utf-8")).hexdigest()
 
 
 async def node_planner(state: AgentState) -> AgentState:
-    """Langkah 1: Planner Agent — analisis intent."""
+    """Step 1: Planner Agent - analyze user intent."""
     log_process("Node: Planner")
     state["plan"] = await planner.plan(state["prompt"])
     return state
 
 
 async def node_rag(state: AgentState) -> AgentState:
-    """Langkah 2: RAG Retrieval — ambil metadata relevan dari Pinecone."""
+    """Step 2: RAG Retrieval - fetch relevant metadata from Pinecone."""
     log_process("Node: RAG Retrieval")
     try:
         vector = await embed_text(state["prompt"])
@@ -81,7 +91,7 @@ async def node_rag(state: AgentState) -> AgentState:
 
 
 async def node_cache_check(state: AgentState) -> AgentState:
-    """Langkah 3: Cache Check (PRJ 8.5)."""
+    """Step 3: Cache Check - look up Redis for cached results (PRJ 8.5)."""
     log_process("Node: Cache Check")
     cache_key = _build_cache_key(state["prompt"])
     state["cache_key"] = cache_key
@@ -108,17 +118,17 @@ async def node_cache_check(state: AgentState) -> AgentState:
 
 
 def route_after_cache(state: AgentState) -> str:
-    """Conditional edge setelah cache_check (PRJ 8.5)."""
+    """Conditional routing after cache_check (PRJ 8.5)."""
     hit = state.get("cache_hit", "miss")
     if hit == "full":
         return "response"
     if hit == "query":
-        return "insight"
+        return "insight"          # maps to node "analyze" below
     return "query_generator"
 
 
 async def node_query_generator(state: AgentState) -> AgentState:
-    """Langkah 4: Query Generator — NLQ → SQL."""
+    """Step 4: Query Generator - translate NLQ to SQL."""
     log_process("Node: Query Generator")
     state["generated_query"] = await query_generator.generate_query(
         state["prompt"], state.get("metadata_context", "")
@@ -127,7 +137,7 @@ async def node_query_generator(state: AgentState) -> AgentState:
 
 
 async def node_validator(state: AgentState) -> AgentState:
-    """Langkah 5: Validator — cek keamanan SQL."""
+    """Step 5: Validator - enforce SQL safety rules."""
     log_process("Node: Validator")
     try:
         state["generated_query"] = validator.validate_query(
@@ -140,7 +150,7 @@ async def node_validator(state: AgentState) -> AgentState:
 
 
 async def node_optimizer(state: AgentState) -> AgentState:
-    """Langkah 6: Optimizer — optimasi query."""
+    """Step 6: Optimizer - apply simple query optimizations."""
     log_process("Node: Optimizer")
     if not state.get("error"):
         state["generated_query"] = optimizer.optimize_query(
@@ -150,13 +160,15 @@ async def node_optimizer(state: AgentState) -> AgentState:
 
 
 async def node_executor(state: AgentState) -> AgentState:
-    """Langkah 7: Query Executor — eksekusi SQL ke Supabase."""
+    """Step 7: Query Executor - run SQL against Supabase."""
     log_process("Node: Query Executor")
     if state.get("error"):
         return state
     try:
         connector = get_connector()
-        state["query_result"] = await connector.execute_query(state["generated_query"])
+        state["query_result"] = await connector.execute_query(
+            state["generated_query"]
+        )
         log_info(f"Query returned {len(state['query_result'])} rows")
 
         cache_key = state.get("cache_key", "")
@@ -178,7 +190,7 @@ async def node_executor(state: AgentState) -> AgentState:
 
 
 async def node_insight(state: AgentState) -> AgentState:
-    """Langkah 8: Insight Analyzer — rangkum jadi insight bisnis."""
+    """Step 8: Insight Analyzer - summarize results into business insight."""
     log_process("Node: Insight Analyzer")
     if state.get("error"):
         return state
@@ -188,12 +200,12 @@ async def node_insight(state: AgentState) -> AgentState:
         )
     except Exception as exc:
         log_error(f"Insight analyzer failed: {exc}")
-        state["insight"] = "Gagal membuat insight dari hasil query."
+        state["insight"] = "Failed to generate insight from query results."
     return state
 
 
 async def node_dashboard(state: AgentState) -> AgentState:
-    """Langkah 9: Dashboard Builder — jika diminta."""
+    """Step 9: Dashboard Builder - only if requested by the plan."""
     log_process("Node: Dashboard Builder")
     if state.get("error"):
         return state
@@ -213,7 +225,7 @@ async def node_dashboard(state: AgentState) -> AgentState:
 
 
 async def node_report(state: AgentState) -> AgentState:
-    """Langkah 10: Report Sender — jika diminta."""
+    """Step 10: Report Sender - only if requested by the plan."""
     log_process("Node: Report Sender")
     if state.get("error"):
         return state
@@ -233,7 +245,7 @@ async def node_report(state: AgentState) -> AgentState:
 
 
 async def node_response(state: AgentState) -> AgentState:
-    """Langkah 11: Response Builder — format final response & simpan cache."""
+    """Step 11: Response Builder - format final response and write cache."""
     log_process("Node: Response Builder")
 
     if state.get("error"):
@@ -242,12 +254,13 @@ async def node_response(state: AgentState) -> AgentState:
         state["final_response"] = state.get("insight", "")
 
     cache_key = state.get("cache_key", "")
-    if (
+    should_cache = (
         cache_key
         and not state.get("error")
         and state.get("cache_hit") != "full"
         and state.get("insight")
-    ):
+    )
+    if should_cache:
         await cache.set(
             f"llm:{cache_key}",
             {
@@ -262,7 +275,7 @@ async def node_response(state: AgentState) -> AgentState:
 
 
 def build_graph() -> StateGraph:
-    """Build the agent workflow graph (11 langkah PRJ 8.4)."""
+    """Build the agent workflow graph (11 steps, PRJ 8.4)."""
     graph = StateGraph(AgentState)
 
     graph.add_node("planner", node_planner)
@@ -272,7 +285,7 @@ def build_graph() -> StateGraph:
     graph.add_node("validator", node_validator)
     graph.add_node("optimizer", node_optimizer)
     graph.add_node("executor", node_executor)
-    graph.add_node("insight", node_insight)
+    graph.add_node("analyze", node_insight)      # renamed from "insight"
     graph.add_node("dashboard", node_dashboard)
     graph.add_node("report", node_report)
     graph.add_node("response", node_response)
@@ -286,7 +299,7 @@ def build_graph() -> StateGraph:
         route_after_cache,
         {
             "response": "response",
-            "insight": "insight",
+            "insight": "analyze",              # route key -> node name
             "query_generator": "query_generator",
         },
     )
@@ -294,8 +307,8 @@ def build_graph() -> StateGraph:
     graph.add_edge("query_generator", "validator")
     graph.add_edge("validator", "optimizer")
     graph.add_edge("optimizer", "executor")
-    graph.add_edge("executor", "insight")
-    graph.add_edge("insight", "dashboard")
+    graph.add_edge("executor", "analyze")
+    graph.add_edge("analyze", "dashboard")
     graph.add_edge("dashboard", "report")
     graph.add_edge("report", "response")
     graph.add_edge("response", END)
@@ -305,10 +318,10 @@ def build_graph() -> StateGraph:
 
 def compile_graph():
     """
-    Compile agent workflow tanpa checkpointer.
+    Compile the agent workflow without a checkpointer.
 
-    RedisSaver dihilangkan karena konflik dependency dengan
-    langgraph 0.2.x yang dipin di project ini. MVP tidak butuh
-    cross-session persistence (PRJ 8.2 menyebut checkpoint optional).
+    RedisSaver is intentionally omitted: langgraph-checkpoint-redis
+    conflicts with the langgraph 0.2.x pin used in this project.
+    MVP does not require cross-session persistence.
     """
     return build_graph().compile()

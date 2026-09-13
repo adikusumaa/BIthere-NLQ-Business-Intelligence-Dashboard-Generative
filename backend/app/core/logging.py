@@ -1,6 +1,6 @@
 """
 Standardized logging configuration for BIthere.
-Format: [PROCESS NAME] detail process...
+Format: [LEVEL] message
 """
 
 import logging
@@ -52,7 +52,7 @@ class BIthereFormatter(logging.Formatter):
 
 def get_logger(name: str = "bithere") -> logging.Logger:
     """
-    Returns a configured logger instance.
+    Return a configured logger instance.
     Prevents duplicate handlers on repeated calls.
     """
 
@@ -74,41 +74,41 @@ logger = get_logger()
 
 # ---------------------------------------------------------------------
 # Convenience helpers
-# Dipakai oleh agent (llm.py, planner.py, dll) supaya cukup:
+# Used by agents (llm.py, planner.py, etc.) so they can simply call:
 #     from app.core.logging import log_info, log_error
-# tanpa harus membuat logger sendiri.
+# without creating their own logger instance.
 # ---------------------------------------------------------------------
 
 def log_debug(message: str, *args, **kwargs) -> None:
-    """Log pesan di level DEBUG."""
+    """Log message at DEBUG level."""
     logger.debug(message, *args, **kwargs)
 
 
 def log_info(message: str, *args, **kwargs) -> None:
-    """Log pesan di level INFO."""
+    """Log message at INFO level."""
     logger.info(message, *args, **kwargs)
 
 
 def log_process(message: str, *args, **kwargs) -> None:
-    """Log pesan di level PROCESS (25) — untuk step-by-step proses agent."""
+    """Log message at PROCESS level (25) for step-by-step agent pipeline."""
     logger.process(message, *args, **kwargs)
 
 
 def log_success(message: str, *args, **kwargs) -> None:
-    """Log pesan di level SUCCESS (35) — untuk operasi yang berhasil."""
+    """Log message at SUCCESS level (35) for successful operations."""
     logger.success(message, *args, **kwargs)
 
 
 def log_warning(message: str, *args, **kwargs) -> None:
-    """Log pesan di level WARNING."""
+    """Log message at WARNING level."""
     logger.warning(message, *args, **kwargs)
 
 
 def log_error(message: str, *args, **kwargs) -> None:
-    """Log pesan di level ERROR."""
+    """Log message at ERROR level."""
     logger.error(message, *args, **kwargs)
 
 
 def log_critical(message: str, *args, **kwargs) -> None:
-    """Log pesan di level CRITICAL."""
+    """Log message at CRITICAL level."""
     logger.critical(message, *args, **kwargs)

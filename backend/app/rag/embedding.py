@@ -22,7 +22,7 @@ EMBEDDING_ENDPOINT = (
 
 def _get_cache_key(text: str) -> str:
     """
-    Generate cache key based on text hash.
+    Generate a cache key based on the text hash.
     """
 
     text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
