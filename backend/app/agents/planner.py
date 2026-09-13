@@ -11,11 +11,18 @@ The system ONLY answers questions about a fintech fraud dataset with these table
 - fraud_labels (fraud labels)
 - mcc_codes (merchant category codes)
 
-If the user question is NOT about this dataset (e.g., general knowledge, other topics, chit-chat), set is_in_scope=false.
+IMPORTANT - set is_in_scope=false and clarification_needed=true if:
+- Question is TOO VAGUE (e.g., "show me data", "tampilkan data", "what's in the database?")
+  -> In this case, provide a "clarification_hint" with a suggested refined question.
+
+Set is_in_scope=false and clarification_needed=false if:
+- Question is NOT about this dataset (general knowledge, other topics, chit-chat).
 
 Analyze the user question and return ONLY a JSON object with this schema:
 {
   "is_in_scope": true | false,
+  "clarification_needed": true | false,
+  "clarification_hint": "suggested refined question (empty if not needed)",
   "intent": "query_data" | "create_dashboard" | "send_report" | "combined",
   "entities": ["table1", "column2", ...],
   "filters": {"date_range": "...", "category": "..."},
@@ -31,6 +38,8 @@ def _fallback(reason: str) -> dict:
     """Default plan when LLM fails or does not follow the schema."""
     return {
         "is_in_scope": False,
+        "clarification_needed": False,
+        "clarification_hint": "",
         "intent": "query_data",
         "entities": [],
         "filters": {},
@@ -58,10 +67,13 @@ async def plan(user_prompt: str, session_state: dict | None = None) -> dict:
             return _fallback("fallback due to non-object JSON")
 
         plan_dict.setdefault("is_in_scope", True)
+        plan_dict.setdefault("clarification_needed", False)
+        plan_dict.setdefault("clarification_hint", "")
 
         log_info(
             f"Planner result: intent={plan_dict.get('intent')}, "
-            f"in_scope={plan_dict.get('is_in_scope')}"
+            f"in_scope={plan_dict.get('is_in_scope')}, "
+            f"clarification={plan_dict.get('clarification_needed')}"
         )
         return plan_dict
 

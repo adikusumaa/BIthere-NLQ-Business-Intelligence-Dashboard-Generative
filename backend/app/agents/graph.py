@@ -12,6 +12,7 @@ Cache flow (per PRJ 8.5):
 
 Guard flow:
     - out-of-scope question -> skip to response with refusal message
+    - vague question        -> skip to response with clarification hint
 
 Note: Node "analyze" is used instead of "insight" to avoid a name
 collision with the AgentState key "insight" (LangGraph disallows
@@ -78,19 +79,36 @@ async def node_planner(state: AgentState) -> AgentState:
 
 
 # ---------------------------------------------------------------------
-# Node: Guard (out-of-scope check)
+# Node: Guard (out-of-scope + vague check)
 # ---------------------------------------------------------------------
 async def node_guard(state: AgentState) -> AgentState:
-    """Step 2: Guard - reject out-of-scope questions before wasting API calls."""
+    """Step 2: Guard - reject out-of-scope or too-vague questions."""
     log_process("Node: Guard")
     plan = state.get("plan", {})
+
     if not plan.get("is_in_scope", True):
-        state["error"] = (
-            "Maaf, saya hanya bisa menjawab pertanyaan seputar dataset "
-            "transaksi kartu, nasabah, kartu, fraud, dan merchant. "
-            "Pertanyaan Anda di luar cakupan."
-        )
-        log_info("Question is out of scope, short-circuiting to response")
+        # NEW: handle vague questions with a clarification hint
+        if plan.get("clarification_needed"):
+            hint = plan.get("clarification_hint", "").strip()
+            if hint:
+                state["error"] = (
+                    "Pertanyaan Anda terlalu umum. Silakan perjelas — "
+                    f'misalnya: "{hint}"'
+                )
+            else:
+                state["error"] = (
+                    "Pertanyaan Anda terlalu umum. Silakan perjelas dengan "
+                    "menyebutkan tabel, kolom, atau metrik spesifik yang "
+                    "ingin Anda analisis."
+                )
+            log_info("Question is too vague, asking for clarification")
+        else:
+            state["error"] = (
+                "Maaf, saya hanya bisa menjawab pertanyaan seputar dataset "
+                "transaksi kartu, nasabah, kartu, fraud, dan merchant. "
+                "Pertanyaan Anda di luar cakupan."
+            )
+            log_info("Question is out of scope, short-circuiting to response")
     return state
 
 
@@ -356,7 +374,7 @@ def build_graph() -> StateGraph:
 
     graph.set_entry_point("planner")
 
-    # Planner -> Guard (out-of-scope check)
+    # Planner -> Guard (out-of-scope + vague check)
     graph.add_edge("planner", "guard")
     graph.add_conditional_edges(
         "guard",
