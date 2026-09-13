@@ -2,8 +2,8 @@ import json
 from app.agents.llm import generate_chat
 from app.core.logging import log_error
 
-
 INSIGHT_SYSTEM_PROMPT = """You are a senior Business Intelligence Analyst.
+
 Given a user question and query results (JSON), produce a concise business insight.
 
 Rules:
@@ -12,9 +12,8 @@ Rules:
 - Suggest 1-2 actionable next steps.
 - Keep it under 150 words.
 - No markdown, no code fences.
+- If the result set is empty (0 rows), state clearly that no matching data was found. Do NOT invent information.
 """
-
-FALLBACK_MESSAGE = "Sorry, failed to generate an insight from the query results."
 
 
 def _truncate_results(results: list[dict], max_rows: int = 20) -> str:
@@ -24,6 +23,13 @@ def _truncate_results(results: list[dict], max_rows: int = 20) -> str:
 
 async def analyze(user_prompt: str, results: list[dict]) -> str:
     """Turn query results into a natural language business insight."""
+    # Guard: no data -> do not hallucinate
+    if not results:
+        return (
+            "Tidak ada data yang cocok dengan pertanyaan Anda di dataset. "
+            "Coba periksa kembali kata kunci atau rentang tanggalnya."
+        )
+
     user_message = (
         f"User question: {user_prompt}\n\n"
         f"Query results ({len(results)} rows, showing up to 20):\n"
@@ -39,4 +45,4 @@ async def analyze(user_prompt: str, results: list[dict]) -> str:
         return await generate_chat(messages, temperature=0.3)
     except Exception as exc:
         log_error(f"Insight analyzer failed: {exc}")
-        return FALLBACK_MESSAGE
+        return "Gagal membuat insight dari hasil query."

@@ -3,8 +3,19 @@ from app.agents.llm import generate_chat
 from app.core.logging import log_info, log_error
 
 PLANNER_SYSTEM_PROMPT = """You are a Planner Agent for a Business Intelligence system.
+
+The system ONLY answers questions about a fintech fraud dataset with these tables:
+- users (customer profiles)
+- cards (card details)
+- transactions (card transactions)
+- fraud_labels (fraud labels)
+- mcc_codes (merchant category codes)
+
+If the user question is NOT about this dataset (e.g., general knowledge, other topics, chit-chat), set is_in_scope=false.
+
 Analyze the user question and return ONLY a JSON object with this schema:
 {
+  "is_in_scope": true | false,
   "intent": "query_data" | "create_dashboard" | "send_report" | "combined",
   "entities": ["table1", "column2", ...],
   "filters": {"date_range": "...", "category": "..."},
@@ -17,8 +28,9 @@ Do not include markdown, code fences, or extra text. Return raw JSON only.
 
 
 def _fallback(reason: str) -> dict:
-    """Default plan saat LLM gagal atau tidak patuh schema."""
+    """Default plan when LLM fails or does not follow the schema."""
     return {
+        "is_in_scope": False,
         "intent": "query_data",
         "entities": [],
         "filters": {},
@@ -45,7 +57,12 @@ async def plan(user_prompt: str, session_state: dict | None = None) -> dict:
             )
             return _fallback("fallback due to non-object JSON")
 
-        log_info(f"Planner result: intent={plan_dict.get('intent')}")
+        plan_dict.setdefault("is_in_scope", True)
+
+        log_info(
+            f"Planner result: intent={plan_dict.get('intent')}, "
+            f"in_scope={plan_dict.get('is_in_scope')}"
+        )
         return plan_dict
 
     except json.JSONDecodeError as exc:
