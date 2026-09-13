@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
 
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = "onboarding@resend.dev"
+    
     SLACK_WEBHOOK_URL: str = ""
 
     DB_TYPE: str = "postgres"
