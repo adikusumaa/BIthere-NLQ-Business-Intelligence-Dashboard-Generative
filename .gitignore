@@ -13,3 +13,5 @@ data/*.json
 # Python cache
 __pycache__/
 *.pyc
+
+frontend/node_modules/

@@ -10,10 +10,20 @@ from app.core.config import settings
 from app.core.logging import logger
 
 
+_singleton: BaseConnector | None = None
+
+
 def get_connector() -> BaseConnector:
     """
-    Returns appropriate connector based on DB_TYPE setting.
+    Return a singleton connector instance for the configured DB_TYPE.
+
+    The same pool is reused across all callers to avoid exhausting
+    Supabase pooler limits when many queries run in parallel.
     """
+    global _singleton
+
+    if _singleton is not None:
+        return _singleton
 
     connectors = {
         "postgres": PostgresConnector,
@@ -28,7 +38,16 @@ def get_connector() -> BaseConnector:
         raise ValueError(f"Unsupported database type: {settings.DB_TYPE}")
 
     logger.info(f"Using {settings.DB_TYPE} connector")
-    return connector_class()
+    _singleton = connector_class()
+    return _singleton
 
 
-__all__ = ["BaseConnector", "get_connector"]
+async def close_connector() -> None:
+    """Close the singleton connector pool (for graceful shutdown)."""
+    global _singleton
+    if _singleton and getattr(_singleton, "pool", None):
+        await _singleton.disconnect()
+    _singleton = None
+
+
+__all__ = ["BaseConnector", "get_connector", "close_connector"]

@@ -2,6 +2,7 @@
 PostgreSQL connector implementation using asyncpg.
 """
 
+import asyncio
 from typing import Any, Dict, List
 
 import asyncpg
@@ -17,41 +18,46 @@ class PostgresConnector(BaseConnector):
     """
 
     def __init__(self):
-        self.pool = None
+        self.pool: asyncpg.Pool | None = None
+        self._lock = asyncio.Lock()
 
     async def connect(self) -> None:
         """
         Create connection pool to PostgreSQL using SUPABASE_DB_URL.
+        Uses a lock to prevent concurrent pool creation.
         """
-        try:
-            database_url = settings.SUPABASE_DB_URL
-            if not database_url:
-                raise ValueError("SUPABASE_DB_URL is not set in .env")
+        if self.pool is not None:
+            return
 
-            self.pool = await asyncpg.create_pool(
-                database_url,
-                min_size=1,
-                max_size=5,
-                timeout=10,
-                command_timeout=30,
-            )
-            logger.success("PostgreSQL connection pool created")
-        except Exception as error:
-            logger.error(f"Failed to connect to PostgreSQL: {str(error)}")
-            raise
+        async with self._lock:
+            if self.pool is not None:
+                return
+            try:
+                database_url = settings.SUPABASE_DB_URL
+                if not database_url:
+                    raise ValueError("SUPABASE_DB_URL is not set in .env")
+
+                self.pool = await asyncpg.create_pool(
+                    database_url,
+                    min_size=1,
+                    max_size=8,
+                    timeout=10,
+                    command_timeout=30,
+                )
+                logger.success("PostgreSQL connection pool created")
+            except Exception as error:
+                logger.error(f"Failed to connect to PostgreSQL: {str(error)}")
+                raise
 
     async def disconnect(self) -> None:
-        """
-        Close connection pool.
-        """
+        """Close connection pool."""
         if self.pool:
             await self.pool.close()
+            self.pool = None
             logger.info("PostgreSQL connection pool closed")
 
     async def execute_query(self, query: str) -> List[Dict[str, Any]]:
-        """
-        Execute SQL query and return results.
-        """
+        """Execute SQL query and return results as list of dicts."""
         if not self.pool:
             await self.connect()
 
@@ -64,9 +70,7 @@ class PostgresConnector(BaseConnector):
             raise
 
     async def get_schema(self) -> Dict[str, Any]:
-        """
-        Retrieve database schema (tables and columns).
-        """
+        """Retrieve database schema (tables and columns)."""
         query = """
             SELECT table_name, column_name, data_type
             FROM information_schema.columns

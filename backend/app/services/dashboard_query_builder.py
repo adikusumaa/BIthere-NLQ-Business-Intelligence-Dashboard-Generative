@@ -1,10 +1,17 @@
 """
 Interactive single-page fraud dashboard - dynamic config test.
 
-SQL convention for text variables:
-    [[AND alias.column = {{tag}}]]     <- Metabase adds quotes automatically
-NOT:
-    [[AND alias.column = '{{tag}}']]   <- creates double quotes
+User NLQ scenario simulated here:
+    "Buat dashboard fraud dengan tren bulanan, top states, cities,
+     chip usage, age group, dan MCC. Saya ingin bisa klik salah satu
+     brand kartu dan semua chart menyesuaikan."
+
+Interaction model:
+    - Click a bar on the Card Brand chart.
+    - Its click behavior sets the brand_filter dashboard parameter.
+    - All other charts re-query using [[AND {{brand_filter}}]].
+
+Note: only the test data is static. The rendering layer is fully dynamic.
 """
 
 import sys
@@ -26,18 +33,28 @@ FILTERS = [
         "slug": "brand",
         "section": "category",
         "target_tag": "brand_filter",
+        "dimension": ("cards", "card_brand"),
     },
     {
         "name": "Merchant State",
         "slug": "state",
         "section": "category",
         "target_tag": "state_filter",
+        "dimension": ("transactions", "merchant_state"),
     },
     {
         "name": "Merchant City",
         "slug": "city",
         "section": "category",
         "target_tag": "city_filter",
+        "dimension": ("transactions", "merchant_city"),
+    },
+    {
+        "name": "Date Range",
+        "slug": "date",
+        "section": "date",
+        "target_tag": "date_filter",
+        "dimension": ("transactions", "date"),
     },
 ]
 
@@ -50,9 +67,10 @@ def sql_kpi(metric_expr: str) -> str:
         "JOIN users u ON t.client_id = u.id "
         "JOIN fraud_labels f ON t.id = f.id "
         "WHERE f.fraud_label = 'Yes' "
-        "[[AND c.card_brand = {{brand_filter}}]] "
-        "[[AND t.merchant_state = {{state_filter}}]] "
-        "[[AND t.merchant_city = {{city_filter}}]]"
+        "[[AND {{brand_filter}}]] "
+        "[[AND {{state_filter}}]] "
+        "[[AND {{city_filter}}]] "
+        "[[AND {{date_filter}}]]"
     )
 
 
@@ -82,9 +100,10 @@ CHART_FRAUD_RATE = {
         "JOIN users u ON t.client_id = u.id "
         "JOIN fraud_labels f ON t.id = f.id "
         "WHERE 1=1 "
-        "[[AND c.card_brand = {{brand_filter}}]] "
-        "[[AND t.merchant_state = {{state_filter}}]] "
-        "[[AND t.merchant_city = {{city_filter}}]]"
+        "[[AND {{brand_filter}}]] "
+        "[[AND {{state_filter}}]] "
+        "[[AND {{city_filter}}]] "
+        "[[AND {{date_filter}}]]"
     ),
     "display": "gauge",
     "layout": (0, 12, 6, 4),
@@ -115,8 +134,9 @@ CHART_BY_BRAND = {
         "JOIN users u ON t.client_id = u.id "
         "JOIN fraud_labels f ON t.id = f.id "
         "WHERE f.fraud_label = 'Yes' "
-        "[[AND t.merchant_state = {{state_filter}}]] "
-        "[[AND t.merchant_city = {{city_filter}}]] "
+        "[[AND {{state_filter}}]] "
+        "[[AND {{city_filter}}]] "
+        "[[AND {{date_filter}}]] "
         "GROUP BY c.card_brand "
         "ORDER BY fraud_count DESC"
     ),
@@ -140,9 +160,10 @@ CHART_MONTHLY_TREND = {
         "JOIN users u ON t.client_id = u.id "
         "JOIN fraud_labels f ON t.id = f.id "
         "WHERE f.fraud_label = 'Yes' "
-        "[[AND c.card_brand = {{brand_filter}}]] "
-        "[[AND t.merchant_state = {{state_filter}}]] "
-        "[[AND t.merchant_city = {{city_filter}}]] "
+        "[[AND {{brand_filter}}]] "
+        "[[AND {{state_filter}}]] "
+        "[[AND {{city_filter}}]] "
+        "[[AND {{date_filter}}]] "
         "GROUP BY month ORDER BY month"
     ),
     "display": "line",
@@ -160,8 +181,9 @@ CHART_TOP_STATES = {
         "JOIN users u ON t.client_id = u.id "
         "JOIN fraud_labels f ON t.id = f.id "
         "WHERE f.fraud_label = 'Yes' "
-        "[[AND c.card_brand = {{brand_filter}}]] "
-        "[[AND t.merchant_city = {{city_filter}}]] "
+        "[[AND {{brand_filter}}]] "
+        "[[AND {{city_filter}}]] "
+        "[[AND {{date_filter}}]] "
         "GROUP BY t.merchant_state "
         "ORDER BY fraud_count DESC LIMIT 10"
     ),
@@ -184,9 +206,10 @@ CHART_CHIP_USAGE = {
         "JOIN users u ON t.client_id = u.id "
         "JOIN fraud_labels f ON t.id = f.id "
         "WHERE f.fraud_label = 'Yes' "
-        "[[AND c.card_brand = {{brand_filter}}]] "
-        "[[AND t.merchant_state = {{state_filter}}]] "
-        "[[AND t.merchant_city = {{city_filter}}]] "
+        "[[AND {{brand_filter}}]] "
+        "[[AND {{state_filter}}]] "
+        "[[AND {{city_filter}}]] "
+        "[[AND {{date_filter}}]] "
         "GROUP BY t.use_chip"
     ),
     "display": "donut",
@@ -211,9 +234,10 @@ CHART_AGE_GROUP = {
         "JOIN users u ON t.client_id = u.id "
         "JOIN fraud_labels f ON t.id = f.id "
         "WHERE f.fraud_label = 'Yes' "
-        "[[AND c.card_brand = {{brand_filter}}]] "
-        "[[AND t.merchant_state = {{state_filter}}]] "
-        "[[AND t.merchant_city = {{city_filter}}]] "
+        "[[AND {{brand_filter}}]] "
+        "[[AND {{state_filter}}]] "
+        "[[AND {{city_filter}}]] "
+        "[[AND {{date_filter}}]] "
         "GROUP BY age_group ORDER BY age_group"
     ),
     "display": "bar",
@@ -231,8 +255,9 @@ CHART_TOP_CITIES = {
         "JOIN users u ON t.client_id = u.id "
         "JOIN fraud_labels f ON t.id = f.id "
         "WHERE f.fraud_label = 'Yes' "
-        "[[AND c.card_brand = {{brand_filter}}]] "
-        "[[AND t.merchant_state = {{state_filter}}]] "
+        "[[AND {{brand_filter}}]] "
+        "[[AND {{state_filter}}]] "
+        "[[AND {{date_filter}}]] "
         "GROUP BY t.merchant_city "
         "ORDER BY fraud_count DESC LIMIT 10"
     ),
@@ -257,9 +282,10 @@ CHART_MCC = {
         "JOIN fraud_labels f ON t.id = f.id "
         "JOIN mcc_codes m ON t.mcc = m.mcc_code "
         "WHERE f.fraud_label = 'Yes' "
-        "[[AND c.card_brand = {{brand_filter}}]] "
-        "[[AND t.merchant_state = {{state_filter}}]] "
-        "[[AND t.merchant_city = {{city_filter}}]] "
+        "[[AND {{brand_filter}}]] "
+        "[[AND {{state_filter}}]] "
+        "[[AND {{city_filter}}]] "
+        "[[AND {{date_filter}}]] "
         "GROUP BY m.description "
         "ORDER BY total_amount DESC LIMIT 15"
     ),
@@ -273,8 +299,8 @@ CHART_MCC = {
 DASHBOARD_CONFIG = {
     "title": "Fraud Analytics Dashboard",
     "description": (
-        "Interactive fraud analytics. Click a bar on Card Brand, State, "
-        "or City chart to filter every other chart on the dashboard."
+        "Interactive fraud analytics. Click a bar on the Card Brand or "
+        "Merchant State chart to filter every other chart on the dashboard."
     ),
     "filters": FILTERS,
     "charts": [
@@ -299,6 +325,10 @@ async def main():
     print("=" * 76)
     print(f"  Charts  : {len(DASHBOARD_CONFIG['charts'])}")
     print(f"  Filters : {len(DASHBOARD_CONFIG['filters'])}")
+    print("  Clickable charts:")
+    print("    - Fraud by Card Brand -> brand_filter")
+    print("    - Top 10 States       -> state_filter")
+    print("    - Top 10 Cities       -> city_filter")
     print("=" * 76)
 
     result = await render_dashboard_dynamic(DASHBOARD_CONFIG)
@@ -314,6 +344,10 @@ async def main():
         print("=" * 76)
         print("  Open in browser:")
         print(f"  {result.get('embed_url')}")
+        print()
+        print("  Interaction: click a bar on Card Brand / State / City.")
+        print("  All other charts re-query to show only that segment.")
+        print("  Reset: click the X on the filter widget at the top.")
         print("=" * 76)
     else:
         print("[FAILED]")

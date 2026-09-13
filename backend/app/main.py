@@ -9,7 +9,7 @@ from app.api.routes import auth
 from app.core.config import settings
 from app.core.logging import logger
 
-
+from app.api.routes import dashboard_api
 
 app = FastAPI(
     title="BIthere API",
@@ -25,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(dashboard_api.router)
 app.include_router(auth.router) 
 
 @app.get("/", tags=["Health"])
