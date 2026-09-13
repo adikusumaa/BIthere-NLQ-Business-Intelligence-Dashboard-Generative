@@ -7,7 +7,7 @@ Supported modes:
 2. render_dashboard_multi      - multiple cards, single page
 3. render_dashboard_pages      - multi-page dashboard with tabs
 4. render_dashboard_interactive - multi-page with variable filters
-5. render_dashboard_dynamic    - config-driven single-page interactive dashboard
+5. render_dashboard_dynamic    - config-driven single or multi-page dashboard
 
 Filter convention (basic variables, reliable with multi-table JOINs):
     text   ->  [[AND alias.column = {{tag}}]]
@@ -22,14 +22,16 @@ Cross-filter highlight:
     keep the bold/fade highlight on the selected bar persistently.
 """
 
+import re
 import uuid
 from typing import Any
 
 import httpx
 
 from app.core.config import settings
-from app.core.logging import log_process, log_success, log_error
-
+from app.core.logging import (
+    log_process, log_success, log_error, log_warning, log_info,
+)
 
 _session_token: str | None = None
 
@@ -115,10 +117,128 @@ def _build_variable_tag(name: str, display_name: str, var_type: str) -> dict:
     }
 
 
+def _strip_alias_prefix(col: str | None) -> str | None:
+    """Remove the table alias prefix from a column reference."""
+    if not col:
+        return col
+    return col.split(".")[-1] if "." in col else col
+
+
+def _infer_dimension_metric_from_sql(sql: str) -> tuple[str | None, str | None]:
+    """Infer dimension and metric column names from SQL SELECT aliases."""
+    if not sql:
+        return None, None
+    match = re.search(
+        r"SELECT\s+(.*?)\s+FROM\s",
+        sql,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None, None
+
+    select_clause = match.group(1)
+    parts: list[str] = []
+    depth = 0
+    current = ""
+    for ch in select_clause:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append(current.strip())
+            current = ""
+        else:
+            current += ch
+    if current.strip():
+        parts.append(current.strip())
+
+    agg_pattern = re.compile(
+        r"\b(COUNT|SUM|AVG|MIN|MAX)\s*\(",
+        re.IGNORECASE,
+    )
+
+    metric_col: str | None = None
+    dim_col: str | None = None
+
+    for part in parts:
+        alias_match = re.search(
+            r"\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)",
+            part,
+            re.IGNORECASE,
+        )
+        if alias_match:
+            alias = alias_match.group(1)
+        else:
+            alias = part.strip().split()[-1] if part.strip() else None
+
+        if not alias:
+            continue
+
+        alias = _strip_alias_prefix(alias)
+
+        if agg_pattern.search(part):
+            if metric_col is None:
+                metric_col = alias
+        else:
+            if dim_col is None:
+                dim_col = alias
+
+    return dim_col, metric_col
+
+
+def _validate_and_fix_dim_met(
+    dimension: str | None,
+    metric: str | None,
+    sql: str | None,
+) -> tuple[str | None, str | None]:
+    """
+    Validate LLM-provided dimension/metric against the actual SQL.
+
+    If a value does not appear in the SQL, fall back to values inferred
+    directly from the SELECT clause.
+    """
+    inferred_dim, inferred_met = _infer_dimension_metric_from_sql(sql or "")
+    sql_lower = (sql or "").lower()
+
+    fixed_dim: str | None = None
+    if dimension:
+        stripped = _strip_alias_prefix(dimension)
+        if stripped and stripped.lower() in sql_lower:
+            fixed_dim = stripped
+        else:
+            log_warning(
+                f"dimension '{dimension}' not in SQL; using inferred '{inferred_dim}'"
+            )
+            fixed_dim = inferred_dim
+    else:
+        fixed_dim = inferred_dim
+
+    fixed_met: str | None = None
+    if metric:
+        stripped = _strip_alias_prefix(metric)
+        if stripped and stripped.lower() in sql_lower:
+            fixed_met = stripped
+        else:
+            log_warning(
+                f"metric '{metric}' not in SQL; using inferred '{inferred_met}'"
+            )
+            fixed_met = inferred_met
+    else:
+        fixed_met = inferred_met
+
+    return fixed_dim, fixed_met
+
+
 def _visualization_defaults(
-    display: str, dimension: str | None, metric: str | None
+    display: str,
+    dimension: str | None,
+    metric: str | None,
+    sql: str | None = None,
 ) -> dict:
     """Provide sensible default visualization_settings per display type."""
+    dimension, metric = _validate_and_fix_dim_met(dimension, metric, sql)
+
     if display in (
         "bar", "bar/stacked", "row", "row/stacked",
         "line", "area", "area/stacked", "combo",
@@ -134,8 +254,10 @@ def _visualization_defaults(
         s = {}
         if dimension:
             s["pie.dimension"] = dimension
+            s["graph.dimensions"] = [dimension]
         if metric:
             s["pie.metric"] = metric
+            s["graph.metrics"] = [metric]
         return s
 
     if display == "funnel":
@@ -450,6 +572,7 @@ async def render_dashboard_multi(
                         display,
                         chart.get("dimension"),
                         chart.get("metric"),
+                        chart.get("sql"),
                     )
 
                 card_id = await _create_card(
@@ -578,6 +701,7 @@ async def render_dashboard_pages(
                             display,
                             chart.get("dimension"),
                             chart.get("metric"),
+                            chart.get("sql"),
                         )
 
                     card_id = await _create_card(
@@ -642,59 +766,29 @@ async def render_dashboard_pages(
 
 async def render_dashboard_dynamic(config: dict) -> dict[str, Any]:
     """
-    Render a fully interactive single-page dashboard from a config dict.
+    Render a dashboard config — single-page or multi-page.
+
+    Config keys:
+        title, description
+        filters: list
+        charts OR pages:
+            - "charts" for single-page
+            - "pages"  for multi-page (each page has name + charts)
 
     Uses BASIC VARIABLES (text/number/date) not Field Filters.
-
-    Cross-filter highlight persistence:
-        Charts that drive a filter (via "crossfilter" key) also get a
-        parameter_mapping to that filter — even if their SQL doesn't
-        reference the tag. This makes Metabase keep the bold/fade
-        highlight on the selected bar persistently.
-
-    Config schema:
-    {
-        "title": str,
-        "description": str | None,
-        "filters": [
-            {
-                "name": str,
-                "slug": str,
-                "section": "category" | "string" | "location/state"
-                           | "location/city" | "number" | "date",
-                "target_tag": str,
-            }
-        ],
-        "charts": [
-            {
-                "title": str,
-                "sql": str,
-                "display": str,
-                "layout": (row, col, size_x, size_y) | str,
-                "dimension": str | None,
-                "metric": str | None,
-                "visualization_settings": dict | None,
-                "crossfilter": {
-                    "source_tag": str,
-                    "source_column": str,
-                } | None,
-            }
-        ],
-    }
-
-    SQL convention:
-        text   ->  [[AND alias.column = {{tag}}]]
-        number ->  [[AND alias.column = {{tag}}]]
-        date   ->  [[AND alias.column = {{tag}}]]
     """
     log_process(
         f"render_dashboard_dynamic: '{config.get('title', '')[:40]}' "
+        f"pages={len(config.get('pages', []))} "
         f"charts={len(config.get('charts', []))} "
         f"filters={len(config.get('filters', []))}"
     )
 
-    if not config.get("charts"):
-        return _fail("At least one chart is required")
+    pages = config.get("pages")
+    single_charts = config.get("charts")
+
+    if not pages and not single_charts:
+        return _fail("Either charts or pages must be provided")
 
     title = config.get("title", "Untitled Dashboard")
     description = config.get("description")
@@ -718,13 +812,19 @@ async def render_dashboard_dynamic(config: dict) -> dict[str, Any]:
                 param_type = PARAM_TYPE_BY_SECTION.get(
                     filt["section"], "string/="
                 )
-                parameter = {
+                parameter: dict[str, Any] = {
                     "id": str(uuid.uuid4()),
                     "name": filt["name"],
                     "slug": filt["slug"],
                     "type": param_type,
                     "sectionId": filt["section"],
                 }
+
+                values = filt.get("values")
+                if values and isinstance(values, list):
+                    parameter["values_source_type"] = "static-list"
+                    parameter["values_source_config"] = {"values": values}
+
                 filter_payload.append(parameter)
                 filter_by_tag[filt["target_tag"]] = parameter
                 tag_to_filter_config[filt["target_tag"]] = filt
@@ -733,104 +833,131 @@ async def render_dashboard_dynamic(config: dict) -> dict[str, Any]:
                 client, headers, title, description
             )
 
+            tabs_payload: list[dict] = []
             dashcards_payload: list[dict] = []
             card_ids: list[int] = []
             dashcard_id = -1
 
-            for chart in config["charts"]:
-                display = chart.get("display", "table")
-                if display not in VALID_DISPLAYS:
-                    display = "table"
+            if pages:
+                work_pages = pages
+            else:
+                work_pages = [{"name": "Main", "charts": single_charts}]
 
-                chart_sql = chart["sql"]
-                template_tags: dict = dict(chart.get("template_tags", {}))
-                used_tag_names: list[str] = []
+            for tab_idx, page in enumerate(work_pages):
+                tab_id = -(tab_idx + 1)
+                if pages:
+                    tabs_payload.append({"id": tab_id, "name": page["name"]})
 
-                for tag_name, filt in tag_to_filter_config.items():
-                    marker = "{{" + tag_name + "}}"
-                    if marker not in chart_sql:
-                        continue
-                    if tag_name in template_tags:
-                        used_tag_names.append(tag_name)
-                        continue
+                for chart in page["charts"]:
+                    display = chart.get("display", "table")
+                    if display not in VALID_DISPLAYS:
+                        display = "table"
 
-                    var_type = TAG_TYPE_BY_SECTION.get(
-                        filt["section"], "text"
+                    chart_sql = chart["sql"]
+                    log_info(
+                        f"chart='{chart['title'][:40]}' "
+                        f"display={display} "
+                        f"dim_in={chart.get('dimension')} "
+                        f"met_in={chart.get('metric')}"
                     )
-                    template_tags[tag_name] = _build_variable_tag(
-                        tag_name, filt["name"], var_type
-                    )
-                    used_tag_names.append(tag_name)
+                    template_tags: dict = dict(chart.get("template_tags", {}))
+                    used_tag_names: list[str] = []
 
-                viz = dict(chart.get("visualization_settings", {}))
-                if not viz:
-                    viz = _visualization_defaults(
-                        display,
-                        chart.get("dimension"),
-                        chart.get("metric"),
-                    )
+                    for tag_name, filt in tag_to_filter_config.items():
+                        marker = "{{" + tag_name + "}}"
+                        if marker not in chart_sql:
+                            continue
+                        if tag_name in template_tags:
+                            used_tag_names.append(tag_name)
+                            continue
 
-                crossfilter = chart.get("crossfilter")
-                if crossfilter:
-                    source_tag = crossfilter.get("source_tag")
-                    source_column = crossfilter.get("source_column")
-                    param = filter_by_tag.get(source_tag)
-                    if param and source_column:
-                        viz["click_behavior"] = _build_crossfilter_behavior(
-                            param["id"], source_column
+                        var_type = TAG_TYPE_BY_SECTION.get(
+                            filt["section"], "text"
                         )
+                        template_tags[tag_name] = _build_variable_tag(
+                            tag_name, filt["name"], var_type
+                        )
+                        used_tag_names.append(tag_name)
 
-                        if source_tag and source_tag in tag_to_filter_config:
-                            if source_tag not in template_tags:
-                                filt_cfg = tag_to_filter_config[source_tag]
-                                var_type = TAG_TYPE_BY_SECTION.get(
-                                    filt_cfg["section"], "text"
-                                )
-                                template_tags[source_tag] = _build_variable_tag(
-                                    source_tag,
-                                    filt_cfg["name"],
-                                    var_type,
-                                )
-                            if source_tag not in used_tag_names:
-                                used_tag_names.append(source_tag)
+                    viz = dict(chart.get("visualization_settings", {}))
+                    if not viz:
+                        viz = _visualization_defaults(
+                            display,
+                            chart.get("dimension"),
+                            chart.get("metric"),
+                            chart_sql,
+                        )
+                    log_info(
+                        f"chart='{chart['title'][:40]}' "
+                        f"viz={viz}"
+                    )
 
-                card_id = await _create_card(
-                    client,
-                    headers,
-                    db_id,
-                    chart["title"],
-                    chart_sql,
-                    display,
-                    template_tags if template_tags else None,
-                    viz if viz else None,
-                )
-                card_ids.append(card_id)
+                    crossfilter = chart.get("crossfilter")
+                    if crossfilter:
+                        source_tag = crossfilter.get("source_tag")
+                        source_column = crossfilter.get("source_column")
+                        param = filter_by_tag.get(source_tag)
+                        if param and source_column:
+                            viz["click_behavior"] = _build_crossfilter_behavior(
+                                param["id"], source_column
+                            )
+                            if source_tag and source_tag in tag_to_filter_config:
+                                if source_tag not in template_tags:
+                                    filt_cfg = tag_to_filter_config[source_tag]
+                                    var_type = TAG_TYPE_BY_SECTION.get(
+                                        filt_cfg["section"], "text"
+                                    )
+                                    template_tags[source_tag] = _build_variable_tag(
+                                        source_tag,
+                                        filt_cfg["name"],
+                                        var_type,
+                                    )
+                                if source_tag not in used_tag_names:
+                                    used_tag_names.append(source_tag)
 
-                row, col, sx, sy = _resolve_layout(
-                    chart.get("layout", (0, 0, 24, 8))
-                )
+                    card_id = await _create_card(
+                        client,
+                        headers,
+                        db_id,
+                        chart["title"],
+                        chart_sql,
+                        display,
+                        template_tags if template_tags else None,
+                        viz if viz else None,
+                    )
+                    card_ids.append(card_id)
 
-                parameter_mappings: list[dict] = []
-                for tag_name in used_tag_names:
-                    parameter_mappings.append({
-                        "parameter_id": filter_by_tag[tag_name]["id"],
+                    row, col, sx, sy = _resolve_layout(
+                        chart.get("layout", (0, 0, 24, 8))
+                    )
+
+                    parameter_mappings: list[dict] = []
+                    for tag_name in used_tag_names:
+                        parameter_mappings.append({
+                            "parameter_id": filter_by_tag[tag_name]["id"],
+                            "card_id": card_id,
+                            "target": ["variable", ["template-tag", tag_name]],
+                        })
+
+                    dashcard: dict[str, Any] = {
+                        "id": dashcard_id,
                         "card_id": card_id,
-                        "target": ["variable", ["template-tag", tag_name]],
-                    })
+                        "row": row,
+                        "col": col,
+                        "size_x": sx,
+                        "size_y": sy,
+                        "parameter_mappings": parameter_mappings,
+                        "visualization_settings": {},
+                    }
+                    if pages:
+                        dashcard["dashboard_tab_id"] = tab_id
 
-                dashcards_payload.append({
-                    "id": dashcard_id,
-                    "card_id": card_id,
-                    "row": row,
-                    "col": col,
-                    "size_x": sx,
-                    "size_y": sy,
-                    "parameter_mappings": parameter_mappings,
-                    "visualization_settings": {},
-                })
-                dashcard_id -= 1
+                    dashcards_payload.append(dashcard)
+                    dashcard_id -= 1
 
             payload: dict[str, Any] = {"dashcards": dashcards_payload}
+            if pages:
+                payload["tabs"] = tabs_payload
             if filter_payload:
                 payload["parameters"] = filter_payload
 
@@ -846,8 +973,9 @@ async def render_dashboard_dynamic(config: dict) -> dict[str, Any]:
                 )
             resp.raise_for_status()
             log_success(
-                f"Dynamic dashboard {dashboard_id} built with "
-                f"{len(card_ids)} cards and {len(filter_payload)} filters"
+                f"Dashboard {dashboard_id} built with "
+                f"{len(work_pages)} pages, {len(card_ids)} cards, "
+                f"{len(filter_payload)} filters"
             )
 
             embed_url = await _enable_public_link(
@@ -858,6 +986,7 @@ async def render_dashboard_dynamic(config: dict) -> dict[str, Any]:
                 "success": True,
                 "dashboard_id": dashboard_id,
                 "card_ids": card_ids,
+                "tabs": [p["name"] for p in work_pages] if pages else [],
                 "filters": [f["name"] for f in filter_payload],
                 "embed_url": embed_url,
                 "error": None,
@@ -908,7 +1037,7 @@ async def render_dashboard_interactive(
 
             if filters:
                 for filt in filters:
-                    parameter = {
+                    parameter: dict[str, Any] = {
                         "id": str(uuid.uuid4()),
                         "name": filt["name"],
                         "slug": filt["slug"],
@@ -917,6 +1046,10 @@ async def render_dashboard_interactive(
                         ),
                         "sectionId": filt["section"],
                     }
+                    values = filt.get("values")
+                    if values and isinstance(values, list):
+                        parameter["values_source_type"] = "static-list"
+                        parameter["values_source_config"] = {"values": values}
                     filter_payload.append(parameter)
                     filter_by_tag[filt["target_tag"]] = parameter
 
@@ -966,6 +1099,7 @@ async def render_dashboard_interactive(
                             display,
                             chart.get("dimension"),
                             chart.get("metric"),
+                            chart_sql,
                         )
 
                     crossfilter = chart.get("crossfilter")

@@ -6,6 +6,7 @@ and renders it in Metabase via the MCP render_dashboard tool.
 """
 
 import json
+import re
 
 from app.agents.llm import generate_chat
 from app.core.logging import log_process, log_info, log_error
@@ -14,163 +15,246 @@ from app.core.logging import log_process, log_info, log_error
 SCHEMA_CONTEXT = """
 Available tables and columns (PostgreSQL database: Supabase):
 
-users (1,219 rows):
-  id (integer, primary key)
-  current_age (integer)
-  retirement_age (integer)
-  birth_year (integer)
-  birth_month (integer)
-  gender (text: 'Male' | 'Female')
-  address (text)
-  latitude (float)
-  longitude (float)
-  per_capita_income (float)
-  yearly_income (float)
-  total_debt (float)
-  credit_score (integer)
-  num_credit_cards (integer)
+users:
+  id, current_age, retirement_age, birth_year, birth_month,
+  gender (Male | Female), address, latitude, longitude,
+  per_capita_income, yearly_income, total_debt,
+  credit_score, num_credit_cards
 
-cards (4,061 rows):
-  id (integer, primary key)
-  client_id (integer, foreign key to users.id)
-  card_brand (text: 'Visa' | 'Mastercard' | 'Discover' | 'Amex')
-  card_type (text: 'Credit' | 'Debit' | 'Debit (Prepaid)')
-  credit_limit (float)
-  acct_open_date (date)
-  card_on_dark_web (boolean)
+cards:
+  id, client_id, card_brand (Visa | Mastercard | Discover | Amex),
+  card_type (Credit | Debit | Debit (Prepaid)), credit_limit,
+  acct_open_date, card_on_dark_web
 
-transactions (1,000,000 rows):
-  id (integer, primary key)
-  date (timestamp)
-  client_id (integer, foreign key to users.id)
-  card_id (integer, foreign key to cards.id)
-  amount (numeric)
-  use_chip (text: 'Swipe Transaction' | 'Online Transaction' | 'Chip Transaction')
-  merchant_id (integer)
-  merchant_city (text)
-  merchant_state (text)
-  mcc (integer, foreign key to mcc_codes.mcc_code)
-  errors (text)
+transactions:
+  id, date (timestamp), client_id, card_id, amount, use_chip,
+  merchant_id, merchant_city, merchant_state, mcc, errors
 
-fraud_labels (1,000,000 rows):
-  id (integer, primary key, matches transactions.id)
-  fraud_label (text: 'Yes' | 'No')
+fraud_labels:
+  id, fraud_label (Yes | No)
 
-mcc_codes (109 rows):
-  mcc_code (integer, primary key)
-  description (text)
+mcc_codes:
+  mcc_code, description
 """
 
 
 DASHBOARD_SYSTEM_PROMPT = f"""You are a Dashboard Builder Agent for a fintech fraud analytics platform.
 
-Given a user's natural-language request, produce a complete dashboard
-configuration as a single JSON object. The configuration is consumed
-directly by the renderer. Output raw JSON only. No markdown.
+Produce a complete dashboard configuration as a SINGLE JSON object.
+Output raw JSON only. No markdown, no prose, no code fences.
 
 {SCHEMA_CONTEXT}
 
 Output JSON schema:
 {{
-  "title": "<dashboard title>",
-  "description": "<one-sentence description>",
+  "title": "string",
+  "description": "string",
   "filters": [
     {{
-      "name": "<display name>",
-      "slug": "<url slug, lowercase>",
-      "section": "category" | "string" | "location/state" | "location/city" | "number" | "date",
-      "target_tag": "<sql_var_name>"
+      "name": "string",
+      "slug": "string",
+      "section": "category" | "number" | "date",
+      "target_tag": "string",
+      "values": ["allowed_value_1", "allowed_value_2"]
     }}
   ],
-  "charts": [
+  "pages": [
     {{
-      "title": "<chart title>",
-      "sql": "<PostgreSQL SELECT query>",
-      "display": "scalar" | "smartscalar" | "gauge" | "bar" | "bar/stacked" | "row" | "line" | "area" | "combo" | "pie" | "donut" | "table" | "funnel" | "progress" | "scatter" | "waterfall",
-      "layout": [row, col, size_x, size_y],
-      "dimension": "<column name for chart category or x-axis>",
-      "metric": "<column alias for chart value or y-axis>",
-      "visualization_settings": {{}},
-      "crossfilter": {{ "source_tag": "<target_tag>", "source_column": "<column alias>" }}
+      "name": "string",
+      "charts": [
+        {{
+          "title": "string",
+          "sql": "string",
+          "display": "scalar|gauge|bar|row|line|area|combo|pie|donut|table|funnel|progress|scatter|waterfall",
+          "layout": [row, col, size_x, size_y],
+          "dimension": "column_name_or_alias",
+          "metric": "column_alias",
+          "visualization_settings": {{}},
+          "crossfilter": {{ "source_tag": "string", "source_column": "string" }}
+        }}
+      ]
     }}
   ]
 }}
 
+Page rules:
+- If the user mentions "multi-page", "tabs", "pages", or separate sections,
+  use "pages" with two or more entries.
+- Otherwise, still use "pages" with a single entry named "Main".
+
+Chart rules:
+- Every chart MUST include "dimension" and "metric", except:
+    - scalar / smartscalar: only "metric"
+    - gauge: only "metric"
+    - table: both may be null
+- For pie / donut / funnel / progress / waterfall:
+    "dimension" is the category column alias,
+    "metric" is the numeric column alias.
+- "metric" must exactly match the SQL alias.
+- "dimension" must exactly match the SQL column name or alias.
+
+Filter values rules:
+- Each filter must include a "values" array listing up to 20 distinct values.
+- Card Brand: ["Visa", "Mastercard", "Discover", "Amex"]
+- Card Type: ["Credit", "Debit", "Debit (Prepaid)"]
+- Chip Usage: ["Chip Transaction", "Swipe Transaction", "Online Transaction"]
+- Gender: ["Male", "Female"]
+- State or city filters: use an empty array [].
+
 SQL rules:
 - Only SELECT statements.
-- Use explicit JOINs with these aliases: t (transactions), c (cards), u (users), f (fraud_labels), m (mcc_codes).
-- Never hardcode a filter value.
-- For optional filters use [[AND alias.column = {{{{tag_name}}}}]].
-  The renderer drops the [[ ]] block when the filter is empty.
-- For text variables Metabase adds quotes automatically; do not add quotes.
-- Standard join keys: t.client_id = u.id, t.card_id = c.id, t.mcc = m.mcc_code, t.id = f.id.
+- Table aliases: t (transactions), c (cards), u (users), f (fraud_labels), m (mcc_codes).
+- Join keys: t.client_id = u.id, t.card_id = c.id, t.mcc = m.mcc_code, t.id = f.id.
 - Fraud filter: f.fraud_label = 'Yes'.
-- For non-aggregated queries add LIMIT.
+- Optional filters: [[AND alias.column = {{{{tag_name}}}}]].
+- Never add quotes around {{{{tag_name}}}}.
+- Non-aggregated queries must include LIMIT.
 
-Layout rules (grid is 24 columns wide):
-- KPI row:  [0, 0, 6, 4], [0, 6, 6, 4], [0, 12, 6, 4], [0, 18, 6, 4]
+Layout grid is 24 columns wide:
+- KPI row:    [0, 0, 6, 4], [0, 6, 6, 4], [0, 12, 6, 4], [0, 18, 6, 4]
 - Half width: [row, 0, 12, 8] or [row, 12, 12, 8]
 - Full width: [row, 0, 24, 8]
-- Increment row by 8 after each full or half-width row; KPI row uses size_y=4.
+- Increment row by 8 between rows.
 
 Filter and cross-filter rules:
-- Propose one filter per text column that appears in WHERE clauses.
-- The filter "target_tag" must exactly match the tag used in SQL.
-- Add "crossfilter" only to charts whose dimension matches a filter column.
-- Do not reference {{brand_filter}} inside the SQL of the chart that drives brand_filter
-  (it must keep showing every brand so the user can pick a different one).
-- Same rule applies to state_filter and city_filter.
+- One filter per text column used in a WHERE clause.
+- filter.target_tag must exactly match the tag used in SQL.
+- The chart that drives a filter must NOT reference that filter tag in its SQL.
+- Add crossfilter only to charts whose dimension matches a filter column.
 """
 
 
-def _strip_code_fences(raw: str) -> str:
-    """Remove markdown code fences if the LLM wrapped the JSON."""
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        parts = cleaned.split("\n", 1)
-        cleaned = parts[1] if len(parts) > 1 else cleaned
-        if cleaned.endswith("```"):
-            cleaned = cleaned.rsplit("```", 1)[0]
-    return cleaned.strip()
+RETRY_PROMPT_SUFFIX = """
+
+CRITICAL REMINDER:
+Return ONLY the JSON object. Do not write any text before or after.
+Do not wrap the JSON in markdown code fences.
+Start your response with the character { and end with }.
+"""
+
+
+def _extract_json_object(raw: str) -> str | None:
+    """Extract a JSON object from raw LLM output."""
+    if not raw:
+        return None
+
+    text = raw.strip()
+
+    fence_match = re.search(
+        r"```(?:json)?\s*(\{.*?\})\s*```",
+        text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if fence_match:
+        return fence_match.group(1).strip()
+
+    if text.startswith("{"):
+        depth = 0
+        in_string = False
+        escape = False
+        for idx, ch in enumerate(text):
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[: idx + 1]
+
+    brace_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if brace_match:
+        return brace_match.group(0)
+
+    return None
 
 
 def _validate_config(config: dict) -> tuple[bool, str]:
-    """Check that required fields are present and well formed."""
+    """Check required fields and shape."""
     if not isinstance(config, dict):
-        return False, "config is not a dict"
+        return False, "not a dict"
     if not config.get("title"):
         return False, "missing title"
-    charts = config.get("charts")
-    if not isinstance(charts, list) or not charts:
-        return False, "missing or empty charts"
 
-    for idx, chart in enumerate(charts):
-        if not chart.get("title"):
-            return False, f"chart {idx} missing title"
-        if not chart.get("sql"):
-            return False, f"chart {idx} missing sql"
-        if not chart.get("display"):
-            return False, f"chart {idx} missing display"
-        layout = chart.get("layout")
-        if not (isinstance(layout, (list, tuple)) and len(layout) == 4):
-            return False, f"chart {idx} layout must be [row, col, size_x, size_y]"
+    pages = config.get("pages")
+    charts = config.get("charts")
+
+    if pages:
+        if not isinstance(pages, list) or not pages:
+            return False, "pages must be a non-empty list"
+        chart_lists = [p.get("charts", []) for p in pages]
+    elif charts:
+        chart_lists = [charts]
+    else:
+        return False, "missing both charts and pages"
+
+    for chart_list in chart_lists:
+        if not isinstance(chart_list, list):
+            return False, "charts must be a list"
+        for idx, chart in enumerate(chart_list):
+            if not chart.get("title"):
+                return False, f"chart {idx}: missing title"
+            if not chart.get("sql"):
+                return False, f"chart {idx}: missing sql"
+            if not chart.get("display"):
+                return False, f"chart {idx}: missing display"
+            layout = chart.get("layout")
+            if not (isinstance(layout, (list, tuple)) and len(layout) == 4):
+                return False, f"chart {idx}: bad layout"
 
     filters = config.get("filters", [])
     if not isinstance(filters, list):
-        return False, "filters must be a list"
-
+        return False, "filters not a list"
     for idx, filt in enumerate(filters):
         if not filt.get("name") or not filt.get("slug") or not filt.get("target_tag"):
-            return False, f"filter {idx} missing required fields"
+            return False, f"filter {idx}: missing fields"
 
     return True, ""
+
+
+async def _llm_call(messages: list[dict]) -> str | None:
+    """Call the LLM and return the raw text, or None on failure."""
+    try:
+        return await generate_chat(messages, temperature=0.0, max_tokens=8192)
+    except Exception as exc:
+        log_error(f"dashboard_builder: LLM call failed: {exc}")
+        return None
+
+
+def _try_parse(raw: str) -> dict | None:
+    """Extract, parse and validate JSON from raw LLM output."""
+    extracted = _extract_json_object(raw)
+    if not extracted:
+        return None
+    try:
+        config = json.loads(extracted)
+    except json.JSONDecodeError as exc:
+        log_error(f"dashboard_builder: JSON decode failed: {exc}")
+        return None
+    if not isinstance(config, dict):
+        return None
+    valid, reason = _validate_config(config)
+    if not valid:
+        log_error(f"dashboard_builder: config invalid: {reason}")
+        return None
+    return config
 
 
 async def generate_dashboard_config(user_prompt: str) -> dict | None:
     """
     Ask the LLM for a full dashboard configuration.
 
-    Returns the config dict on success, or None on failure.
+    Attempts once. If the response cannot be parsed, retries with an
+    explicit reminder to output raw JSON.
     """
     log_process("dashboard_builder: generating config via LLM")
 
@@ -179,31 +263,45 @@ async def generate_dashboard_config(user_prompt: str) -> dict | None:
         {"role": "user", "content": user_prompt},
     ]
 
-    try:
-        raw = await generate_chat(messages, temperature=0.1)
-    except Exception as exc:
-        log_error(f"dashboard_builder: LLM call failed: {exc}")
+    raw = await _llm_call(messages)
+    if raw:
+        log_info(f"dashboard_builder: LLM raw output length={len(raw)}")
+        config = _try_parse(raw)
+        if config:
+            n_pages = len(config.get("pages", []))
+            n_charts = sum(len(p.get("charts", [])) for p in config.get("pages", []))
+            if not n_pages and config.get("charts"):
+                n_charts = len(config.get("charts", []))
+            log_info(
+                f"dashboard_builder: config ok "
+                f"title='{config.get('title', '')[:40]}' "
+                f"pages={n_pages} charts={n_charts} "
+                f"filters={len(config.get('filters', []))}"
+            )
+            return config
+        log_error("dashboard_builder: first attempt parse failed")
+        log_error(f"dashboard_builder: raw preview: {raw[:500]}")
+
+    log_process("dashboard_builder: retrying with reminder prompt")
+
+    retry_messages = [
+        {"role": "system", "content": DASHBOARD_SYSTEM_PROMPT + RETRY_PROMPT_SUFFIX},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    raw_retry = await _llm_call(retry_messages)
+    if not raw_retry:
+        log_error("dashboard_builder: retry returned nothing")
         return None
 
-    cleaned = _strip_code_fences(raw)
-
-    try:
-        config = json.loads(cleaned)
-    except json.JSONDecodeError as exc:
-        log_error(f"dashboard_builder: JSON decode failed: {exc}")
+    log_info(f"dashboard_builder: retry output length={len(raw_retry)}")
+    config = _try_parse(raw_retry)
+    if not config:
+        log_error("dashboard_builder: retry parse failed")
+        log_error(f"dashboard_builder: retry preview: {raw_retry[:500]}")
         return None
 
-    valid, reason = _validate_config(config)
-    if not valid:
-        log_error(f"dashboard_builder: config validation failed: {reason}")
-        return None
-
-    log_info(
-        f"dashboard_builder: config generated "
-        f"title='{config.get('title', '')[:40]}' "
-        f"charts={len(config.get('charts', []))} "
-        f"filters={len(config.get('filters', []))}"
-    )
+    log_info("dashboard_builder: retry config ok")
     return config
 
 
