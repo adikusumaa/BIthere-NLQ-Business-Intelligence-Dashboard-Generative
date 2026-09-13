@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str
     JWT_SECRET: str
+    SUPABASE_DB_URL: str
 
     PINECONE_API_KEY: str
     PINECONE_ENVIRONMENT: str

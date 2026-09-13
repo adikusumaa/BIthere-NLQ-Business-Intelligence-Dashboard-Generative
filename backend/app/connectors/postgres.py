@@ -21,15 +21,19 @@ class PostgresConnector(BaseConnector):
 
     async def connect(self) -> None:
         """
-        Create connection pool to PostgreSQL.
+        Create connection pool to PostgreSQL using SUPABASE_DB_URL.
         """
-
         try:
-            database_url = settings.SUPABASE_URL.replace("https://", "postgresql://")
+            database_url = settings.SUPABASE_DB_URL
+            if not database_url:
+                raise ValueError("SUPABASE_DB_URL is not set in .env")
+
             self.pool = await asyncpg.create_pool(
                 database_url,
                 min_size=1,
                 max_size=5,
+                timeout=10,
+                command_timeout=30,
             )
             logger.success("PostgreSQL connection pool created")
         except Exception as error:
@@ -40,7 +44,6 @@ class PostgresConnector(BaseConnector):
         """
         Close connection pool.
         """
-
         if self.pool:
             await self.pool.close()
             logger.info("PostgreSQL connection pool closed")
@@ -49,7 +52,6 @@ class PostgresConnector(BaseConnector):
         """
         Execute SQL query and return results.
         """
-
         if not self.pool:
             await self.connect()
 
@@ -65,14 +67,12 @@ class PostgresConnector(BaseConnector):
         """
         Retrieve database schema (tables and columns).
         """
-
         query = """
             SELECT table_name, column_name, data_type
             FROM information_schema.columns
             WHERE table_schema = 'public'
             ORDER BY table_name, ordinal_position
         """
-
         results = await self.execute_query(query)
 
         schema = {}
