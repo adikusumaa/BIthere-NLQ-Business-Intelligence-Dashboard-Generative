@@ -28,8 +28,9 @@ async def send_slack(
             - channel (str)
             - error (str | None)
     """
-    log_process(f"send_slack: preparing message ({len(message)} chars)")
-
+    # ------------------------------------------------------------------
+    # 1. Validasi config DULU
+    # ------------------------------------------------------------------
     if not settings.SLACK_WEBHOOK_URL:
         log_error("send_slack: SLACK_WEBHOOK_URL not configured")
         return {
@@ -38,6 +39,9 @@ async def send_slack(
             "error": "SLACK_WEBHOOK_URL not configured in .env",
         }
 
+    # ------------------------------------------------------------------
+    # 2. Validasi message SEBELUM pakai len(message)
+    # ------------------------------------------------------------------
     if not message or not message.strip():
         log_error("send_slack: empty message")
         return {
@@ -46,10 +50,18 @@ async def send_slack(
             "error": "Message is empty",
         }
 
+    # ------------------------------------------------------------------
+    # 3. Baru log setelah validasi lolos
+    # ------------------------------------------------------------------
+    log_process(f"send_slack: preparing message ({len(message)} chars)")
+
     text = f"*BIthere Report*\n\n{message}"
     if dashboard_url:
         text += f"\n\n<{dashboard_url}|View Dashboard>"
 
+    # ------------------------------------------------------------------
+    # 4. Kirim ke Slack
+    # ------------------------------------------------------------------
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
