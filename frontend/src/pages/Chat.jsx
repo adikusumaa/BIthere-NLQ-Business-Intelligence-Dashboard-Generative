@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import ChatBox from "../components/ChatBox";
 import DashboardEmbed from "../components/DashboardEmbed";
 import MessageList from "../components/MessageList";
+import ReportButton from "../components/ReportButton";
 import { useAuthStore } from "../store/authStore";
 import { useChatStore } from "../store/chatStore";
 
@@ -22,29 +23,15 @@ const styles = {
     borderBottom: "1px solid var(--color-border)",
     background: "var(--color-bg-soft)",
   },
-  brand: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  },
+  brand: { display: "flex", alignItems: "center", gap: "10px" },
   brandName: {
     fontSize: "16px",
     fontWeight: "700",
     color: "var(--color-text)",
   },
-  brandTag: {
-    fontSize: "11px",
-    color: "var(--color-text-dim)",
-  },
-  actions: {
-    display: "flex",
-    gap: "12px",
-    alignItems: "center",
-  },
-  userEmail: {
-    fontSize: "12px",
-    color: "var(--color-text-dim)",
-  },
+  brandTag: { fontSize: "11px", color: "var(--color-text-dim)" },
+  actions: { display: "flex", gap: "12px", alignItems: "center" },
+  userEmail: { fontSize: "12px", color: "var(--color-text-dim)" },
   btn: {
     padding: "6px 12px",
     background: "transparent",
@@ -52,12 +39,9 @@ const styles = {
     border: "1px solid var(--color-border)",
     borderRadius: "6px",
     fontSize: "12px",
+    textDecoration: "none",
   },
-  body: {
-    flex: 1,
-    display: "flex",
-    overflow: "hidden",
-  },
+  body: { flex: 1, display: "flex", overflow: "hidden" },
   chatPane: {
     flex: 1,
     display: "flex",
@@ -76,6 +60,7 @@ const styles = {
 export default function Chat() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
   const logout = useAuthStore((s) => s.logout);
 
   const messages = useChatStore((s) => s.messages);
@@ -86,6 +71,15 @@ export default function Chat() {
   const reset = useChatStore((s) => s.reset);
 
   const [showDashboard, setShowDashboard] = useState(true);
+
+  const lastInsight = (() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "assistant" && messages[i].insight) {
+        return messages[i].insight;
+      }
+    }
+    return null;
+  })();
 
   const handleLogout = async () => {
     await logout();
@@ -102,6 +96,15 @@ export default function Chat() {
         </div>
         <div style={styles.actions}>
           <span style={styles.userEmail}>{user?.email}</span>
+          <ReportButton
+            insight={lastInsight}
+            dashboardUrl={activeDashboardUrl}
+          />
+          {role === "admin" && (
+            <Link to="/admin" style={styles.btn}>
+              Admin
+            </Link>
+          )}
           <button
             style={styles.btn}
             onClick={() => setShowDashboard((v) => !v)}

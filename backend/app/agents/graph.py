@@ -2,8 +2,11 @@
 LangGraph orchestration for the BIthere agent workflow.
 
 Pipeline (per PRJ 8.4):
-    planner -> guard -> rag -> cache_check -> query_generator -> validator
-    -> optimizer -> executor -> analyze -> dashboard -> report -> response
+    planner -> guard -> rag -> cache_check
+        -> (query pipeline)  query_generator -> validator -> optimizer
+                            -> executor -> analyze
+        -> (dashboard only)  dashboard_builder
+        -> report -> response
 
 Cache flow (per PRJ 8.5):
     - full hit  -> skip to response
@@ -15,10 +18,7 @@ Guard flow:
     - vague question        -> skip to response with clarification hint
 
 Note: Node "analyze" is used instead of "insight" to avoid a name
-collision with the AgentState key "insight" (LangGraph disallows
-nodes and state keys sharing the same name).
-
-MVP: no checkpointer (RedisSaver removed due to dependency conflicts).
+collision with the AgentState key "insight".
 """
 
 import hashlib
@@ -40,7 +40,7 @@ from app.rag.pinecone_client import pinecone_client
 from app.rag.embedding import embed_text
 from app.services.cache import cache
 from app.core.config import settings
-from app.core.logging import log_process, log_info, log_error
+from app.core.logging import log_process, log_info, log_error, log_warning
 
 
 class AgentState(TypedDict, total=False):
@@ -48,6 +48,7 @@ class AgentState(TypedDict, total=False):
 
     prompt: str
     session_id: str
+    user_email: str
     plan: dict
     metadata_context: str
     generated_query: str
@@ -63,7 +64,7 @@ class AgentState(TypedDict, total=False):
 
 
 def _build_cache_key(prompt: str) -> str:
-    """Build a deterministic cache key from the user prompt (PRJ 5.4)."""
+    """Build a deterministic cache key from the user prompt."""
     normalized = prompt.strip().lower()
     return hashlib.md5(normalized.encode("utf-8")).hexdigest()
 
@@ -79,7 +80,7 @@ async def node_planner(state: AgentState) -> AgentState:
 
 
 # ---------------------------------------------------------------------
-# Node: Guard (out-of-scope + vague check)
+# Node: Guard
 # ---------------------------------------------------------------------
 async def node_guard(state: AgentState) -> AgentState:
     """Step 2: Guard - reject out-of-scope or too-vague questions."""
@@ -87,7 +88,6 @@ async def node_guard(state: AgentState) -> AgentState:
     plan = state.get("plan", {})
 
     if not plan.get("is_in_scope", True):
-        # NEW: handle vague questions with a clarification hint
         if plan.get("clarification_needed"):
             hint = plan.get("clarification_hint", "").strip()
             if hint:
@@ -145,7 +145,7 @@ async def node_rag(state: AgentState) -> AgentState:
 # Node: Cache Check
 # ---------------------------------------------------------------------
 async def node_cache_check(state: AgentState) -> AgentState:
-    """Step 4: Cache Check - look up Redis for cached results (PRJ 8.5)."""
+    """Step 4: Cache Check - look up Redis for cached results."""
     log_process("Node: Cache Check")
     cache_key = _build_cache_key(state["prompt"])
     state["cache_key"] = cache_key
@@ -172,12 +172,30 @@ async def node_cache_check(state: AgentState) -> AgentState:
 
 
 def route_after_cache(state: AgentState) -> str:
-    """Conditional routing after cache_check (PRJ 8.5)."""
+    """
+    Conditional routing after cache_check.
+
+    Priority:
+    1. Full cache hit -> response
+    2. Query cache hit -> analyze
+    3. Dashboard-only intent -> dashboard builder (skip query pipeline)
+    4. Otherwise -> query generator
+    """
     hit = state.get("cache_hit", "miss")
     if hit == "full":
         return "response"
     if hit == "query":
-        return "insight"          # maps to node "analyze" below
+        return "insight"
+
+    plan = state.get("plan", {})
+    intent = plan.get("intent", "query_data")
+    needs_dashboard = plan.get("needs_dashboard", False)
+    needs_report = plan.get("needs_report", False)
+
+    if intent == "create_dashboard" or (needs_dashboard and not needs_report):
+        log_info("Route: dashboard-only mode, skipping query pipeline")
+        return "dashboard_only"
+
     return "query_generator"
 
 
@@ -250,13 +268,16 @@ async def node_executor(state: AgentState) -> AgentState:
             log_info(f"Cached query result with key query:{cache_key}")
     except Exception as exc:
         log_error(f"Query execution failed: {exc}")
+        log_error(
+            f"Failed SQL preview: {state.get('generated_query', '')[:500]}"
+        )
         state["error"] = f"Query execution failed: {exc}"
         state["query_result"] = []
     return state
 
 
 # ---------------------------------------------------------------------
-# Node: Insight Analyzer (named "analyze" in the graph)
+# Node: Insight Analyzer
 # ---------------------------------------------------------------------
 async def node_insight(state: AgentState) -> AgentState:
     """Step 9: Insight Analyzer - summarize results into business insight."""
@@ -277,22 +298,49 @@ async def node_insight(state: AgentState) -> AgentState:
 # Node: Dashboard Builder
 # ---------------------------------------------------------------------
 async def node_dashboard(state: AgentState) -> AgentState:
-    """Step 10: Dashboard Builder - only if requested by the plan."""
+    """Step 10: Dashboard Builder - generate dashboard config from prompt."""
     log_process("Node: Dashboard Builder")
+
     if state.get("error"):
         return state
-    plan = state.get("plan", {})
-    if not plan.get("needs_dashboard"):
-        log_info("Dashboard not requested, skipping")
-        return state
+
     try:
         result = await dashboard_builder.build_dashboard(
-            state["prompt"], state.get("query_result", [])
+            state["prompt"], state.get("query_result") or []
         )
         state["dashboard_config"] = result.get("config")
         state["dashboard_url"] = result.get("embed_url")
+
+        if not result.get("success"):
+            log_warning(f"Dashboard build failed: {result.get('error')}")
+            return state
+
+        if not state.get("insight") and result.get("config"):
+            config = result["config"]
+            pages = config.get("pages") or []
+            chart_count = sum(len(p.get("charts", [])) for p in pages)
+            if not pages and config.get("charts"):
+                chart_count = len(config.get("charts"))
+            title = config.get("title", "Fraud Analytics Dashboard")
+            filter_count = len(config.get("filters", []))
+            page_count = max(len(pages), 1)
+
+            state["insight"] = (
+                f"Dashboard '{title}' berhasil dibuat dengan "
+                f"{page_count} halaman dan {chart_count} chart interaktif. "
+                f"Tersedia {filter_count} filter untuk eksplorasi data.\n\n"
+                f"Langkah selanjutnya:\n"
+                f"1. Buka dashboard di panel kanan untuk melihat visualisasi.\n"
+                f"2. Gunakan filter dan klik chart untuk mengeksplorasi "
+                f"segmen spesifik.\n"
+                f"3. Kirim laporan ke Email atau Slack lewat tombol "
+                f"'Kirim Laporan'."
+            )
+            log_info("Auto-generated insight from dashboard config")
+
     except Exception as exc:
         log_error(f"Dashboard builder failed: {exc}")
+
     return state
 
 
@@ -300,22 +348,89 @@ async def node_dashboard(state: AgentState) -> AgentState:
 # Node: Report Sender
 # ---------------------------------------------------------------------
 async def node_report(state: AgentState) -> AgentState:
-    """Step 11: Report Sender - only if requested by the plan."""
+    """Step 11: Report Sender - capture screenshots and dispatch."""
     log_process("Node: Report Sender")
     if state.get("error"):
         return state
+
     plan = state.get("plan", {})
     if not plan.get("needs_report"):
         log_info("Report not requested, skipping")
         return state
+
+    channel = plan.get("report_channel", "email")
+    insight = state.get("insight", "")
+    dashboard_url = state.get("dashboard_url")
+    recipient_email = state.get("user_email")
+
+    log_info(f"Report dispatch: channel={channel} recipient={recipient_email}")
+
+    # Capture screenshots if there is a dashboard
+    screenshot_urls: list[str] = []
+    if dashboard_url:
+        try:
+            from app.services.dashboard_screenshot import (
+                capture_dashboard_screenshots,
+            )
+            from app.services.storage import upload_screenshot
+
+            session_id = state.get("session_id", "default")[:8]
+            paths = await capture_dashboard_screenshots(
+                dashboard_url, prefix=f"report_{session_id}"
+            )
+            for idx, path in enumerate(paths):
+                remote_name = (
+                    f"reports/{session_id}/tab_{idx:02d}.png"
+                )
+                url = upload_screenshot(path, remote_name)
+                if url:
+                    screenshot_urls.append(url)
+
+            log_info(f"Report screenshots uploaded: {len(screenshot_urls)}")
+        except Exception as exc:
+            log_error(f"screenshot pipeline failed: {exc}")
+
+    results: dict = {}
+
     try:
-        state["report_status"] = await report_sender.send_report(
-            insight=state.get("insight", ""),
-            channel=plan.get("report_channel", "slack"),
-            dashboard_url=state.get("dashboard_url"),
-        )
+        if channel in ("email", "both"):
+            if recipient_email:
+                from app.mcp.tools.send_email import send_email
+                from app.services.email_templates import render_report_email
+
+                html = render_report_email(
+                    title="BIthere Fraud Report",
+                    insight=insight or "Dashboard BIthere telah dibuat.",
+                    dashboard_url=dashboard_url,
+                    screenshot_urls=screenshot_urls,
+                )
+                results["email"] = await send_email(
+                    to_email=recipient_email,
+                    subject="[BIthere] Fraud Report",
+                    body=html,
+                    is_html=True,
+                )
+                log_info(
+                    f"Report email success: {results['email'].get('success')}"
+                )
+            else:
+                log_warning("Report email skipped: no recipient email")
+
+        if channel in ("slack", "both"):
+            from app.mcp.tools.send_slack import send_slack
+
+            results["slack"] = await send_slack(
+                message=insight or "Dashboard BIthere telah dibuat.",
+                dashboard_url=dashboard_url,
+            )
+            log_info(
+                f"Report slack success: {results['slack'].get('success')}"
+            )
+
+        state["report_status"] = results
     except Exception as exc:
         log_error(f"Report sender failed: {exc}")
+
     return state
 
 
@@ -323,20 +438,28 @@ async def node_report(state: AgentState) -> AgentState:
 # Node: Response Builder
 # ---------------------------------------------------------------------
 async def node_response(state: AgentState) -> AgentState:
-    """Step 12: Response Builder - format final response and write cache."""
+    """Step 12: Response Builder - format final response and cache."""
     log_process("Node: Response Builder")
 
     if state.get("error"):
         state["final_response"] = state["error"]
     else:
-        state["final_response"] = state.get("insight", "")
+        insight = state.get("insight") or ""
+        dashboard_url = state.get("dashboard_url")
+        if not insight and dashboard_url:
+            state["final_response"] = (
+                "Dashboard berhasil dibuat. Lihat panel kanan untuk "
+                "visualisasi interaktif."
+            )
+        else:
+            state["final_response"] = insight
 
     cache_key = state.get("cache_key", "")
     should_cache = (
         cache_key
         and not state.get("error")
         and state.get("cache_hit") != "full"
-        and state.get("insight")
+        and state.get("final_response")
     )
     if should_cache:
         await cache.set(
@@ -356,7 +479,7 @@ async def node_response(state: AgentState) -> AgentState:
 # Graph Builder
 # ---------------------------------------------------------------------
 def build_graph() -> StateGraph:
-    """Build the agent workflow graph (PRJ 8.4)."""
+    """Build the agent workflow graph."""
     graph = StateGraph(AgentState)
 
     graph.add_node("planner", node_planner)
@@ -367,14 +490,13 @@ def build_graph() -> StateGraph:
     graph.add_node("validator", node_validator)
     graph.add_node("optimizer", node_optimizer)
     graph.add_node("executor", node_executor)
-    graph.add_node("analyze", node_insight)      # renamed to avoid state key collision
+    graph.add_node("analyze", node_insight)
     graph.add_node("dashboard", node_dashboard)
     graph.add_node("report", node_report)
     graph.add_node("response", node_response)
 
     graph.set_entry_point("planner")
 
-    # Planner -> Guard (out-of-scope + vague check)
     graph.add_edge("planner", "guard")
     graph.add_conditional_edges(
         "guard",
@@ -385,7 +507,6 @@ def build_graph() -> StateGraph:
         },
     )
 
-    # RAG -> Cache -> (full hit: response | query hit: analyze | miss: query_generator)
     graph.add_edge("rag", "cache_check")
     graph.add_conditional_edges(
         "cache_check",
@@ -394,10 +515,10 @@ def build_graph() -> StateGraph:
             "response": "response",
             "insight": "analyze",
             "query_generator": "query_generator",
+            "dashboard_only": "dashboard",
         },
     )
 
-    # Main pipeline
     graph.add_edge("query_generator", "validator")
     graph.add_edge("validator", "optimizer")
     graph.add_edge("optimizer", "executor")
@@ -416,6 +537,5 @@ def compile_graph():
 
     RedisSaver is intentionally omitted: langgraph-checkpoint-redis
     conflicts with the langgraph 0.2.x pin used in this project.
-    MVP does not require cross-session persistence.
     """
     return build_graph().compile()

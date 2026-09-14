@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import Admin from "./pages/Admin.jsx";
 import Chat from "./pages/Chat.jsx";
 import Login from "./pages/Login.jsx";
 import { useAuthStore } from "./store/authStore";
@@ -22,6 +23,23 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function AdminRoute({ children }) {
+  const user = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
+  const loading = useAuthStore((s) => s.loading);
+
+  if (loading) {
+    return (
+      <div style={{ padding: "24px", color: "var(--color-text-dim)" }}>
+        Loading...
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  if (role !== "admin") return <Navigate to="/chat" replace />;
+  return children;
+}
+
 export default function App() {
   const init = useAuthStore((s) => s.init);
 
@@ -38,6 +56,14 @@ export default function App() {
           <ProtectedRoute>
             <Chat />
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <Admin />
+          </AdminRoute>
         }
       />
       <Route path="/" element={<Navigate to="/chat" replace />} />

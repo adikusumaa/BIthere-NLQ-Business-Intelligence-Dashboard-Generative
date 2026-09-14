@@ -12,11 +12,11 @@ The system ONLY answers questions about a fintech fraud dataset with these table
 - mcc_codes (merchant category codes)
 
 IMPORTANT - set is_in_scope=false and clarification_needed=true if:
-- Question is TOO VAGUE (e.g., "show me data", "tampilkan data", "what's in the database?")
-  -> In this case, provide a "clarification_hint" with a suggested refined question.
+- Question is TOO VAGUE (e.g., "show me data", "tampilkan data").
+  -> Provide "clarification_hint" with a suggested refined question.
 
 Set is_in_scope=false and clarification_needed=false if:
-- Question is NOT about this dataset (general knowledge, other topics, chit-chat).
+- Question is NOT about this dataset (general knowledge, chit-chat).
 
 Analyze the user question and return ONLY a JSON object with this schema:
 {
@@ -28,9 +28,18 @@ Analyze the user question and return ONLY a JSON object with this schema:
   "filters": {"date_range": "...", "category": "..."},
   "needs_dashboard": true | false,
   "needs_report": true | false,
+  "report_channel": "email" | "slack" | "both",
   "reasoning": "short explanation"
 }
-Do not include markdown, code fences, or extra text. Return raw JSON only.
+
+Rules for report_channel:
+- If the user mentions "email" -> "email"
+- If the user mentions "slack" -> "slack"
+- If the user mentions both or says "both", "keduanya", "semua channel" -> "both"
+- If needs_report=true but no channel specified -> "email"
+- If needs_report=false -> "email" (value is ignored)
+
+Return raw JSON only. No markdown, no code fences.
 """
 
 
@@ -45,6 +54,7 @@ def _fallback(reason: str) -> dict:
         "filters": {},
         "needs_dashboard": False,
         "needs_report": False,
+        "report_channel": "email",
         "reasoning": reason,
     }
 
@@ -69,11 +79,13 @@ async def plan(user_prompt: str, session_state: dict | None = None) -> dict:
         plan_dict.setdefault("is_in_scope", True)
         plan_dict.setdefault("clarification_needed", False)
         plan_dict.setdefault("clarification_hint", "")
+        plan_dict.setdefault("report_channel", "email")
 
         log_info(
             f"Planner result: intent={plan_dict.get('intent')}, "
             f"in_scope={plan_dict.get('is_in_scope')}, "
-            f"clarification={plan_dict.get('clarification_needed')}"
+            f"needs_report={plan_dict.get('needs_report')}, "
+            f"report_channel={plan_dict.get('report_channel')}"
         )
         return plan_dict
 

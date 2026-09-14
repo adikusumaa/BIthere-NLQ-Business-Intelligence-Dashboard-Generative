@@ -79,6 +79,7 @@ def _append_message(session: dict, role: str, content: str, **extra: Any) -> Non
 async def _stream_events(
     prompt: str,
     session_id: str,
+    user_email: str,
 ) -> AsyncGenerator[str, None]:
     """Run the agent graph and stream SSE events."""
     session = await _load_session(session_id)
@@ -88,7 +89,11 @@ async def _stream_events(
 
     try:
         graph = compile_graph()
-        result = await graph.ainvoke({"prompt": prompt, "session_id": session_id})
+        result = await graph.ainvoke({
+            "prompt": prompt,
+            "session_id": session_id,
+            "user_email": user_email,
+        })
     except Exception as exc:
         log_error(f"chat: graph execution failed: {exc}")
         yield _sse("error", {"message": "Agent execution failed. Please try again."})
@@ -131,12 +136,11 @@ async def chat(
 ) -> StreamingResponse:
     """Submit a prompt and stream agent events via SSE."""
     session_id = request.session_id or str(uuid.uuid4())
-    log_process(
-        f"chat: user={user.get('email', 'unknown')} session={session_id}"
-    )
+    user_email = user.get("email", "")
+    log_process(f"chat: user={user_email} session={session_id}")
 
     return StreamingResponse(
-        _stream_events(request.message, session_id),
+        _stream_events(request.message, session_id, user_email),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -53,12 +53,7 @@ export default function DashboardEmbed({ url, onClose }) {
       <div style={styles.header}>
         <span>Dashboard</span>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <a
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            style={styles.link}
-          >
+          <a href={url} target="_blank" rel="noreferrer" style={styles.link}>
             Buka di tab baru
           </a>
           {onClose && (

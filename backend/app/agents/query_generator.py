@@ -6,7 +6,7 @@ Converts natural language questions into safe SQL queries (PostgreSQL dialect).
 import re
 
 from app.agents.llm import generate_chat
-from app.core.logging import log_info, log_error
+from app.core.logging import log_info, log_error, log_warning
 
 
 QUERY_GEN_SYSTEM_PROMPT = """You are a PostgreSQL query generator for a fintech fraud-detection dataset.
@@ -48,8 +48,23 @@ RULES:
     date >= DATE '2010-01-01' AND date < DATE '2010-02-01'.
 - Geographic: use t.merchant_state or t.merchant_city (NOT u.state).
 - Add LIMIT 1000 for non-aggregated queries if no LIMIT is present.
-- Return ONLY the SQL query, no markdown, no explanation, no code fences.
+- Type casts use PostgreSQL :: syntax, e.g. amount::numeric, count::int.
+
+HARD CONSTRAINTS (violating these breaks the query):
+- Do NOT use placeholder syntax: no ":param", no "$1", no "?", no "{{ }}", no "%s".
+- Write literal values directly. Example: WHERE c.card_brand = 'Visa'.
+- Do NOT include markdown, code fences, comments, or explanations.
+
+Return ONLY the SQL query.
 """
+
+
+FORBIDDEN_PLACEHOLDER_PATTERNS = [
+    (re.compile(r"(?<!:):[A-Za-z_]\w*"), ":param placeholder"),
+    (re.compile(r"\$\d+"), "$n placeholder"),
+    (re.compile(r"\{\{"), "{{ }} template tag"),
+    (re.compile(r"%s"), "%s placeholder"),
+]
 
 
 def _extract_sql(raw: str) -> str:
@@ -58,6 +73,16 @@ def _extract_sql(raw: str) -> str:
     cleaned = re.sub(r"^```(?:sql)?\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*```$", "", cleaned)
     return cleaned.strip()
+
+
+def _reject_placeholders(sql: str) -> None:
+    """Raise if SQL contains any placeholder syntax."""
+    for pattern, label in FORBIDDEN_PLACEHOLDER_PATTERNS:
+        match = pattern.search(sql)
+        if match:
+            raise ValueError(
+                f"Generated SQL contains forbidden {label}: {match.group(0)!r}"
+            )
 
 
 async def generate_query(user_prompt: str, metadata_context: str) -> str:
@@ -81,4 +106,12 @@ async def generate_query(user_prompt: str, metadata_context: str) -> str:
 
     sql = _extract_sql(raw)
     log_info(f"Generated SQL length: {len(sql)} chars")
+
+    try:
+        _reject_placeholders(sql)
+    except ValueError as exc:
+        log_warning(f"Placeholder detected: {exc}")
+        log_warning(f"Problematic SQL: {sql[:300]}")
+        raise
+
     return sql
