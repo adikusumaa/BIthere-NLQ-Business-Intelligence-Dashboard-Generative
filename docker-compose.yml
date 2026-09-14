@@ -35,6 +35,46 @@ services:
       retries: 5
       start_period: 30s
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bithere-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      METABASE_URL: http://metabase:3000
+    volumes:
+      - ./backend:/app
+      - ./reports:/app/reports
+    networks:
+      - bithere-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      metabase:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bithere-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - bithere-network
+    depends_on:
+      - backend
+
 volumes:
   redis_data:
   metabase_data:
