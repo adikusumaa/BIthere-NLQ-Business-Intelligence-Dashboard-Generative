@@ -31,7 +31,7 @@ The system is designed for organizations where business users depend on data ana
 | Authentication & NL Prompt | Generated Dashboard & Insight |
 | :--- | :--- |
 | ![Login Page](img/Login%20Page.png)<br>*Secure JWT-based session login* | ![Dashboard Created](img/dashboard%20created.png)<br>*Auto-generated visualization dashboard* |
-| ![User Prompting](img/user%20prompting.png)<br>*Natural language query entry* | ![Insight](img/Insight.png)<br>*AI-generated executive summary & findings* |
+| ![User Prompting](img/user%20promting.png)<br>*Natural language query entry* | ![Insight](img/Insight.png)<br>*AI-generated executive summary & findings* |
 
 ---
 
@@ -140,7 +140,7 @@ An abstraction layer allows the system to connect to PostgreSQL, MySQL, or Mongo
 
 ### Multi-Page Dashboard & Filtering
 ![Dashboard Page 2](img/dashboard%20page%202.png)
-![Filtering Dashboard](img/Filtering%20dashboard.png)
+![Filtering Dashboard](img/Flltering%20dashboard.png)
 ![Mastercard Filtering](img/mastercard%20filtering.png)
 
 ### Report Delivery & Notifications
