@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import ChatBox from "../components/ChatBox";
 import DashboardEmbed from "../components/DashboardEmbed";
 import MessageList from "../components/MessageList";
 import ReportButton from "../components/ReportButton";
+import { PanelIcon, UserIcon } from "../components/Icons";
 import { useAuthStore } from "../store/authStore";
 import { useChatStore } from "../store/chatStore";
 
@@ -13,35 +14,72 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     height: "100vh",
-    background: "var(--color-bg)",
+    background: "var(--ios-bg)",
   },
   header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
+    background: "var(--ios-surface)",
+    borderBottom: "1px solid var(--ios-separator)",
     padding: "12px 20px",
-    borderBottom: "1px solid var(--color-border)",
-    background: "var(--color-bg-soft)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "16px",
   },
-  brand: { display: "flex", alignItems: "center", gap: "10px" },
-  brandName: {
-    fontSize: "16px",
+  brand: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  avatar: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #007AFF 0%, #5856D6 100%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#FFFFFF",
+    fontSize: "15px",
     fontWeight: "700",
-    color: "var(--color-text)",
+    boxShadow: "0 2px 8px rgba(0, 122, 255, 0.24)",
   },
-  brandTag: { fontSize: "11px", color: "var(--color-text-dim)" },
-  actions: { display: "flex", gap: "12px", alignItems: "center" },
-  userEmail: { fontSize: "12px", color: "var(--color-text-dim)" },
-  btn: {
-    padding: "6px 12px",
-    background: "transparent",
-    color: "var(--color-text-dim)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "6px",
+  brandText: {
+    display: "flex",
+    flexDirection: "column",
+    lineHeight: 1.2,
+  },
+  brandName: {
+    fontSize: "17px",
+    fontWeight: "600",
+    color: "var(--ios-text)",
+    letterSpacing: "-0.02em",
+  },
+  brandTag: {
     fontSize: "12px",
-    textDecoration: "none",
+    color: "var(--ios-text-secondary)",
   },
-  body: { flex: 1, display: "flex", overflow: "hidden" },
+  actions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  iconBtn: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--ios-surface-2)",
+    color: "var(--ios-blue)",
+    transition: "background 0.15s ease",
+  },
+  body: {
+    flex: 1,
+    display: "flex",
+    overflow: "hidden",
+    background: "var(--ios-bg)",
+  },
   chatPane: {
     flex: 1,
     display: "flex",
@@ -49,11 +87,12 @@ const styles = {
     minWidth: 0,
   },
   errorBar: {
-    padding: "8px 16px",
-    background: "rgba(248, 81, 73, 0.1)",
-    color: "var(--color-danger)",
-    borderTop: "1px solid var(--color-danger)",
-    fontSize: "12px",
+    padding: "10px 20px",
+    background: "rgba(255, 59, 48, 0.08)",
+    color: "var(--ios-red)",
+    borderTop: "1px solid rgba(255, 59, 48, 0.2)",
+    fontSize: "13px",
+    textAlign: "center",
   },
 };
 
@@ -87,31 +126,51 @@ export default function Chat() {
     navigate("/login");
   };
 
+  const handleAdminClick = () => navigate("/admin");
+
   return (
     <div style={styles.page}>
       <header style={styles.header}>
         <div style={styles.brand}>
-          <div style={styles.brandName}>BIthere</div>
-          <div style={styles.brandTag}>AI Business Intelligence Analyst</div>
+          <div style={styles.avatar}>
+            {user?.email ? user.email[0].toUpperCase() : "B"}
+          </div>
+          <div style={styles.brandText}>
+            <div style={styles.brandName}>BIthere</div>
+            <div style={styles.brandTag}>{user?.email || "Analyst"}</div>
+          </div>
         </div>
+
         <div style={styles.actions}>
-          <span style={styles.userEmail}>{user?.email}</span>
           <ReportButton
             insight={lastInsight}
             dashboardUrl={activeDashboardUrl}
           />
           {role === "admin" && (
-            <Link to="/admin" style={styles.btn}>
-              Admin
-            </Link>
+            <button
+              style={styles.iconBtn}
+              onClick={handleAdminClick}
+              title="Admin panel"
+            >
+              <UserIcon size={18} color="var(--ios-blue)" />
+            </button>
           )}
           <button
-            style={styles.btn}
+            style={styles.iconBtn}
             onClick={() => setShowDashboard((v) => !v)}
+            title={showDashboard ? "Hide dashboard" : "Show dashboard"}
           >
-            {showDashboard ? "Sembunyikan dashboard" : "Tampilkan dashboard"}
+            <PanelIcon size={18} color="var(--ios-blue)" />
           </button>
-          <button style={styles.btn} onClick={handleLogout}>
+          <button
+            className="ios-btn-ghost"
+            onClick={handleLogout}
+            style={{
+              padding: "6px 12px",
+              fontSize: "14px",
+              borderRadius: "var(--radius-pill)",
+            }}
+          >
             Logout
           </button>
         </div>

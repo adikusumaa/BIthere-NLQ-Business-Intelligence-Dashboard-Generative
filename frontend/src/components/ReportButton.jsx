@@ -1,62 +1,67 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { FileIcon, MailIcon, MenuIcon } from "./Icons";
 import { useAuthStore } from "../store/authStore";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const styles = {
   wrapper: { position: "relative" },
-  button: (active) => ({
-    padding: "6px 12px",
-    background: active ? "var(--color-accent)" : "transparent",
-    color: active ? "#ffffff" : "var(--color-text-dim)",
-    border: active
-      ? "1px solid var(--color-accent)"
-      : "1px solid var(--color-border)",
-    borderRadius: "6px",
-    fontSize: "12px",
-    cursor: "pointer",
+  trigger: (active, disabled) => ({
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: active ? "var(--ios-blue-tint)" : "var(--ios-surface-2)",
+    opacity: disabled ? 0.4 : 1,
+    cursor: disabled ? "not-allowed" : "pointer",
+    transition: "background 0.15s ease",
   }),
-  buttonDisabled: {
-    opacity: 0.5,
-    cursor: "not-allowed",
-  },
   menu: {
     position: "absolute",
-    top: "calc(100% + 6px)",
+    top: "calc(100% + 8px)",
     right: 0,
-    minWidth: "220px",
-    background: "var(--color-bg-soft)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "6px",
-    boxShadow: "0 6px 20px rgba(0, 0, 0, 0.4)",
-    zIndex: 100,
+    minWidth: "240px",
+    background: "var(--ios-surface)",
+    border: "1px solid var(--ios-separator)",
+    borderRadius: "var(--radius-md)",
+    boxShadow: "var(--shadow-lg)",
+    zIndex: 200,
     overflow: "hidden",
+    animation: "menuFadeIn 0.15s ease",
   },
   item: {
-    display: "block",
     width: "100%",
-    padding: "10px 14px",
-    background: "transparent",
-    color: "var(--color-text)",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "12px 16px",
+    fontSize: "15px",
     textAlign: "left",
+    color: "var(--ios-text)",
+    background: "var(--ios-surface)",
+    borderBottom: "1px solid var(--ios-separator)",
+  },
+  itemLast: {
+    borderBottom: "none",
+  },
+  status: (ok) => ({
+    padding: "10px 16px",
     fontSize: "13px",
-    borderBottom: "1px solid var(--color-border)",
-    cursor: "pointer",
-  },
-  message: {
-    padding: "10px 14px",
-    fontSize: "12px",
-    color: "var(--color-text-dim)",
-    background: "var(--color-bg)",
-  },
+    color: ok ? "var(--ios-green)" : "var(--ios-red)",
+    background: ok
+      ? "rgba(52, 199, 89, 0.08)"
+      : "rgba(255, 59, 48, 0.08)",
+    textAlign: "center",
+  }),
 };
 
 const FALLBACK_INSIGHT =
-  "Dashboard Fraud Analytics telah dibuat. Silakan buka dashboard " +
-  "interaktif pada panel kanan untuk mengeksplorasi visualisasi lengkap " +
-  "per halaman, termasuk KPI utama, tren bulanan, distribusi per brand, " +
-  "dan breakdown per merchant.";
+  "Dashboard fraud analytics telah dibuat. Buka dashboard di panel kanan " +
+  "untuk mengeksplorasi visualisasi interaktif, atau kirim laporan ini " +
+  "ke email untuk mendapatkan ringkasan lengkap beserta tangkapan layar.";
 
 export default function ReportButton({ insight, dashboardUrl }) {
   const getToken = useAuthStore((s) => s.getToken);
@@ -65,9 +70,20 @@ export default function ReportButton({ insight, dashboardUrl }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
+  const wrapRef = useRef(null);
 
   const hasContent = Boolean(insight) || Boolean(dashboardUrl);
   const disabled = !hasContent;
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
 
   const send = async (channel) => {
     if (!hasContent) return;
@@ -96,7 +112,7 @@ export default function ReportButton({ insight, dashboardUrl }) {
       if (!response.ok) {
         throw new Error(data.detail || `HTTP ${response.status}`);
       }
-      setStatus({ ok: true, msg: `${channel.toUpperCase()} terkirim` });
+      setStatus({ ok: true, msg: `${channel.toUpperCase()} sent` });
       setTimeout(() => {
         setStatus(null);
         setOpen(false);
@@ -109,48 +125,46 @@ export default function ReportButton({ insight, dashboardUrl }) {
   };
 
   return (
-    <div style={styles.wrapper}>
+    <div style={styles.wrapper} ref={wrapRef}>
       <button
-        style={{
-          ...styles.button(open),
-          ...(disabled ? styles.buttonDisabled : {}),
-        }}
-        onClick={() => setOpen((v) => !v)}
+        style={styles.trigger(open, disabled)}
+        onClick={() => !disabled && setOpen((v) => !v)}
         disabled={disabled || busy}
         title={
           disabled
-            ? "Belum ada insight atau dashboard untuk dikirim"
-            : "Kirim laporan"
+            ? "No insight or dashboard to send yet"
+            : "Send report"
         }
+        aria-label="Send report"
       >
-        {busy ? "..." : "Kirim Laporan"}
+        <MenuIcon size={18} color={disabled ? "var(--ios-text-tertiary)" : "var(--ios-blue)"} />
       </button>
 
       {open && !busy && (
         <div style={styles.menu}>
-          <button style={styles.item} onClick={() => send("pdf")}>
-            Export PDF
-          </button>
-          <button style={styles.item} onClick={() => send("email")}>
-            Kirim ke Email ({userEmail})
+          <button
+            style={styles.item}
+            onClick={() => send("pdf")}
+          >
+            <FileIcon size={18} color="var(--ios-blue)" />
+            <span>Export PDF</span>
           </button>
           <button
-            style={{ ...styles.item, borderBottom: "none" }}
+            style={styles.item}
+            onClick={() => send("email")}
+          >
+            <MailIcon size={18} color="var(--ios-blue)" />
+            <span>Send to Email</span>
+          </button>
+          <button
+            style={{ ...styles.item, ...styles.itemLast }}
             onClick={() => send("slack")}
           >
-            Kirim ke Slack
+            <MailIcon size={18} color="var(--ios-blue)" />
+            <span>Send to Slack</span>
           </button>
           {status && (
-            <div
-              style={{
-                ...styles.message,
-                color: status.ok
-                  ? "var(--color-success)"
-                  : "var(--color-danger)",
-              }}
-            >
-              {status.msg}
-            </div>
+            <div style={styles.status(status.ok)}>{status.msg}</div>
           )}
         </div>
       )}

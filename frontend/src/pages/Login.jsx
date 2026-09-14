@@ -5,66 +5,92 @@ import { useAuthStore } from "../store/authStore";
 
 const styles = {
   page: {
+    minHeight: "100vh",
+    background: "var(--ios-bg)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: "100vh",
     padding: "24px",
   },
   card: {
     width: "100%",
-    maxWidth: "400px",
-    background: "var(--color-bg-soft)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "8px",
-    padding: "32px",
+    maxWidth: "420px",
+    background: "var(--ios-surface)",
+    borderRadius: "var(--radius-xl)",
+    boxShadow: "var(--shadow-lg)",
+    padding: "40px 32px 32px 32px",
+    border: "1px solid var(--ios-separator)",
   },
-  title: {
-    fontSize: "24px",
+  logoWrap: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    marginBottom: "32px",
+  },
+  logoMark: {
+    width: "64px",
+    height: "64px",
+    borderRadius: "18px",
+    background: "linear-gradient(135deg, #007AFF 0%, #5856D6 100%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 8px 24px rgba(0, 122, 255, 0.28)",
+    marginBottom: "16px",
+  },
+  logoLetter: {
+    color: "#FFFFFF",
+    fontSize: "32px",
     fontWeight: "700",
+    letterSpacing: "-0.02em",
+  },
+  brand: {
+    fontSize: "26px",
+    fontWeight: "700",
+    letterSpacing: "-0.02em",
+    color: "var(--ios-text)",
     marginBottom: "4px",
   },
-  subtitle: {
-    fontSize: "13px",
-    color: "var(--color-text-dim)",
-    marginBottom: "24px",
+  tagline: {
+    fontSize: "14px",
+    color: "var(--ios-text-secondary)",
+    textAlign: "center",
   },
   label: {
     display: "block",
-    fontSize: "12px",
+    fontSize: "13px",
     fontWeight: "600",
-    color: "var(--color-text-dim)",
-    marginBottom: "6px",
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
+    color: "var(--ios-text-secondary)",
+    marginBottom: "8px",
+    letterSpacing: "0.02em",
   },
-  input: {
-    width: "100%",
-    padding: "10px 12px",
-    background: "var(--color-bg)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "6px",
-    color: "var(--color-text)",
+  fieldGroup: {
     marginBottom: "16px",
-  },
-  button: {
-    width: "100%",
-    padding: "10px 12px",
-    background: "var(--color-accent)",
-    color: "#ffffff",
-    borderRadius: "6px",
-    fontSize: "14px",
-    fontWeight: "600",
-    transition: "background 0.15s",
   },
   error: {
-    background: "rgba(248, 81, 73, 0.1)",
-    border: "1px solid var(--color-danger)",
-    color: "var(--color-danger)",
-    padding: "10px 12px",
-    borderRadius: "6px",
-    fontSize: "13px",
+    background: "rgba(255, 59, 48, 0.08)",
+    color: "var(--ios-red)",
+    padding: "12px 14px",
+    borderRadius: "var(--radius-md)",
+    fontSize: "14px",
     marginBottom: "16px",
+    border: "1px solid rgba(255, 59, 48, 0.2)",
+  },
+  submit: {
+    width: "100%",
+    padding: "16px",
+    marginTop: "8px",
+    fontSize: "17px",
+    fontWeight: "600",
+    background: "var(--ios-blue)",
+    color: "#FFFFFF",
+    borderRadius: "var(--radius-md)",
+  },
+  footer: {
+    marginTop: "24px",
+    textAlign: "center",
+    fontSize: "12px",
+    color: "var(--ios-text-tertiary)",
   },
 };
 
@@ -85,7 +111,7 @@ export default function Login() {
       await login(email, password);
       navigate("/chat");
     } catch (err) {
-      setError(err.message || "Login failed");
+      setError(err.message || "Sign in failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
@@ -94,41 +120,57 @@ export default function Login() {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <div style={styles.title}>BIthere</div>
-        <div style={styles.subtitle}>AI Business Intelligence Analyst</div>
+        <div style={styles.logoWrap}>
+          <div style={styles.logoMark}>
+            <span style={styles.logoLetter}>B</span>
+          </div>
+          <div style={styles.brand}>BIthere</div>
+          <div style={styles.tagline}>AI Business Intelligence Analyst</div>
+        </div>
 
         {error && <div style={styles.error}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
-          <label style={styles.label}>Email</label>
-          <input
-            style={styles.input}
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            required
-            autoFocus
-          />
+          <div style={styles.fieldGroup}>
+            <label style={styles.label}>EMAIL</label>
+            <input
+              className="ios-input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              autoFocus
+              autoComplete="email"
+            />
+          </div>
 
-          <label style={styles.label}>Password</label>
-          <input
-            style={styles.input}
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Your password"
-            required
-          />
+          <div style={styles.fieldGroup}>
+            <label style={styles.label}>PASSWORD</label>
+            <input
+              className="ios-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
+              required
+              autoComplete="current-password"
+            />
+          </div>
 
           <button
             type="submit"
-            style={styles.button}
+            style={styles.submit}
             disabled={loading}
+            className="ios-btn"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
+
+        <div style={styles.footer}>
+          Internal use only. Contact your administrator for access.
+        </div>
       </div>
     </div>
   );

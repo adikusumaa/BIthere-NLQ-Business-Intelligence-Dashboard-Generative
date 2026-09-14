@@ -1,55 +1,75 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+import { SendIcon } from "./Icons";
 
 const styles = {
   container: {
-    borderTop: "1px solid var(--color-border)",
-    padding: "16px 20px",
-    background: "var(--color-bg-soft)",
+    padding: "12px 20px 20px 20px",
+    background: "var(--ios-bg)",
+    borderTop: "1px solid var(--ios-separator)",
   },
   row: {
     display: "flex",
-    gap: "10px",
     alignItems: "flex-end",
+    gap: "10px",
+    background: "var(--ios-surface)",
+    border: "1px solid var(--ios-separator)",
+    borderRadius: "22px",
+    padding: "6px 6px 6px 18px",
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+  },
+  rowFocused: {
+    borderColor: "var(--ios-blue)",
+    boxShadow: "0 0 0 4px var(--ios-blue-tint)",
   },
   textarea: {
     flex: 1,
-    minHeight: "44px",
+    minHeight: "24px",
     maxHeight: "160px",
-    padding: "11px 14px",
-    background: "var(--color-bg)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "8px",
-    color: "var(--color-text)",
-    fontSize: "14px",
+    padding: "8px 0",
+    background: "transparent",
+    border: "none",
+    color: "var(--ios-text)",
+    fontSize: "16px",
     resize: "none",
-    lineHeight: "1.5",
+    lineHeight: "1.42",
+    fontFamily: "inherit",
   },
-  button: {
-    padding: "11px 22px",
-    background: "var(--color-accent)",
-    color: "#ffffff",
-    borderRadius: "8px",
-    fontSize: "14px",
-    fontWeight: "600",
-    transition: "background 0.15s",
-  },
+  sendBtn: (active) => ({
+    width: "34px",
+    height: "34px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: active ? "var(--ios-blue)" : "var(--ios-text-tertiary)",
+    transition: "background 0.15s ease, transform 0.1s ease",
+    flexShrink: 0,
+  }),
   hint: {
     fontSize: "11px",
-    color: "var(--color-text-dim)",
+    color: "var(--ios-text-tertiary)",
     marginTop: "8px",
+    textAlign: "center",
   },
 };
 
 export default function ChatBox({ onSend, disabled }) {
   const [value, setValue] = useState("");
+  const [focused, setFocused] = useState(false);
+  const textareaRef = useRef(null);
 
   const handleSubmit = (event) => {
-    event.preventDefault();
+    if (event) event.preventDefault();
     if (disabled) return;
     const text = value.trim();
     if (!text) return;
     onSend(text);
     setValue("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
   };
 
   const handleKeyDown = (event) => {
@@ -59,25 +79,48 @@ export default function ChatBox({ onSend, disabled }) {
     }
   };
 
+  const handleInput = (event) => {
+    setValue(event.target.value);
+    const el = event.target;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  };
+
+  const active = Boolean(value.trim()) && !disabled;
+
   return (
     <form style={styles.container} onSubmit={handleSubmit}>
-      <div style={styles.row}>
+      <div
+        style={{
+          ...styles.row,
+          ...(focused ? styles.rowFocused : {}),
+        }}
+      >
         <textarea
+          ref={textareaRef}
           style={styles.textarea}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={handleInput}
           onKeyDown={handleKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder={
-            disabled ? "Sedang memproses..." : "Tanya apa saja tentang data..."
+            disabled ? "Processing..." : "Ask anything about the data..."
           }
           disabled={disabled}
+          rows={1}
         />
-        <button type="submit" style={styles.button} disabled={disabled}>
-          {disabled ? "..." : "Send"}
+        <button
+          type="submit"
+          style={styles.sendBtn(active)}
+          disabled={!active}
+          aria-label="Send"
+        >
+          <SendIcon size={16} color="#FFFFFF" />
         </button>
       </div>
       <div style={styles.hint}>
-        Enter untuk kirim, Shift+Enter untuk baris baru
+        Press Enter to send, Shift + Enter for new line
       </div>
     </form>
   );

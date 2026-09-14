@@ -92,21 +92,20 @@ async def node_guard(state: AgentState) -> AgentState:
             hint = plan.get("clarification_hint", "").strip()
             if hint:
                 state["error"] = (
-                    "Pertanyaan Anda terlalu umum. Silakan perjelas — "
-                    f'misalnya: "{hint}"'
+                    "Your question is too broad. Please be more specific — "
+                    f'for example: "{hint}"'
                 )
             else:
                 state["error"] = (
-                    "Pertanyaan Anda terlalu umum. Silakan perjelas dengan "
-                    "menyebutkan tabel, kolom, atau metrik spesifik yang "
-                    "ingin Anda analisis."
+                    "Your question is too broad. Please specify the table, "
+                    "column, or metric you would like to analyze."
                 )
             log_info("Question is too vague, asking for clarification")
         else:
             state["error"] = (
-                "Maaf, saya hanya bisa menjawab pertanyaan seputar dataset "
-                "transaksi kartu, nasabah, kartu, fraud, dan merchant. "
-                "Pertanyaan Anda di luar cakupan."
+                "I can only answer questions about the fintech fraud "
+                "dataset (transactions, customers, cards, fraud labels, "
+                "and merchants). Your question is out of scope."
             )
             log_info("Question is out of scope, short-circuiting to response")
     return state
@@ -326,15 +325,14 @@ async def node_dashboard(state: AgentState) -> AgentState:
             page_count = max(len(pages), 1)
 
             state["insight"] = (
-                f"Dashboard '{title}' berhasil dibuat dengan "
-                f"{page_count} halaman dan {chart_count} chart interaktif. "
-                f"Tersedia {filter_count} filter untuk eksplorasi data.\n\n"
-                f"Langkah selanjutnya:\n"
-                f"1. Buka dashboard di panel kanan untuk melihat visualisasi.\n"
-                f"2. Gunakan filter dan klik chart untuk mengeksplorasi "
-                f"segmen spesifik.\n"
-                f"3. Kirim laporan ke Email atau Slack lewat tombol "
-                f"'Kirim Laporan'."
+                f"Dashboard '{title}' was created successfully with "
+                f"{page_count} page(s) and {chart_count} interactive charts. "
+                f"{filter_count} filter(s) are available for data exploration.\n\n"
+                f"Next steps:\n"
+                f"1. Open the dashboard in the right panel to view the visualizations.\n"
+                f"2. Use the filters and click on charts to explore specific segments.\n"
+                f"3. Send the report to Email or Slack using the "
+                f"'Kirim Laporan' button."
             )
             log_info("Auto-generated insight from dashboard config")
 
@@ -400,7 +398,7 @@ async def node_report(state: AgentState) -> AgentState:
 
                 html = render_report_email(
                     title="BIthere Fraud Report",
-                    insight=insight or "Dashboard BIthere telah dibuat.",
+                    insight=insight or "BIthere dashboard is ready.",
                     dashboard_url=dashboard_url,
                     screenshot_urls=screenshot_urls,
                 )
@@ -420,7 +418,7 @@ async def node_report(state: AgentState) -> AgentState:
             from app.mcp.tools.send_slack import send_slack
 
             results["slack"] = await send_slack(
-                message=insight or "Dashboard BIthere telah dibuat.",
+                message=insight or "BIthere dashboard is ready.",
                 dashboard_url=dashboard_url,
             )
             log_info(
@@ -448,8 +446,8 @@ async def node_response(state: AgentState) -> AgentState:
         dashboard_url = state.get("dashboard_url")
         if not insight and dashboard_url:
             state["final_response"] = (
-                "Dashboard berhasil dibuat. Lihat panel kanan untuk "
-                "visualisasi interaktif."
+                "Dashboard created successfully. See the right panel "
+                "for interactive visualizations."
             )
         else:
             state["final_response"] = insight

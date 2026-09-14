@@ -6,20 +6,30 @@ import Chat from "./pages/Chat.jsx";
 import Login from "./pages/Login.jsx";
 import { useAuthStore } from "./store/authStore";
 
+function LoadingScreen() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--ios-text-secondary)",
+        fontSize: "15px",
+        background: "var(--ios-bg)",
+      }}
+    >
+      Loading...
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }) {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
 
-  if (loading) {
-    return (
-      <div style={{ padding: "24px", color: "var(--color-text-dim)" }}>
-        Loading...
-      </div>
-    );
-  }
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
   return children;
 }
 
@@ -28,13 +38,7 @@ function AdminRoute({ children }) {
   const role = useAuthStore((s) => s.role);
   const loading = useAuthStore((s) => s.loading);
 
-  if (loading) {
-    return (
-      <div style={{ padding: "24px", color: "var(--color-text-dim)" }}>
-        Loading...
-      </div>
-    );
-  }
+  if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (role !== "admin") return <Navigate to="/chat" replace />;
   return children;

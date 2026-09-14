@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { ChevronRightIcon, PlusIcon, TrashIcon } from "../components/Icons";
 import { useAuthStore } from "../store/authStore";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -8,156 +9,247 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "var(--color-bg)",
+    background: "var(--ios-bg)",
   },
   header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
+    background: "var(--ios-surface)",
+    borderBottom: "1px solid var(--ios-separator)",
     padding: "12px 20px",
-    borderBottom: "1px solid var(--color-border)",
-    background: "var(--color-bg-soft)",
-  },
-  brand: { display: "flex", alignItems: "center", gap: "10px" },
-  brandName: { fontSize: "16px", fontWeight: "700" },
-  brandTag: { fontSize: "11px", color: "var(--color-text-dim)" },
-  actions: { display: "flex", gap: "12px", alignItems: "center" },
-  userEmail: { fontSize: "12px", color: "var(--color-text-dim)" },
-  btn: {
-    padding: "6px 12px",
-    background: "transparent",
-    color: "var(--color-text-dim)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "6px",
-    fontSize: "12px",
-    textDecoration: "none",
-  },
-  btnPrimary: {
-    padding: "8px 16px",
-    background: "var(--color-accent)",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "13px",
-    fontWeight: "600",
-  },
-  container: { padding: "32px 40px", maxWidth: "1100px", margin: "0 auto" },
-  title: { fontSize: "22px", fontWeight: "700", marginBottom: "4px" },
-  subtitle: {
-    fontSize: "13px",
-    color: "var(--color-text-dim)",
-    marginBottom: "24px",
-  },
-  toolbar: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "16px",
+    justifyContent: "space-between",
+    gap: "16px",
   },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    background: "var(--color-bg-soft)",
-    borderRadius: "8px",
-    overflow: "hidden",
-    border: "1px solid var(--color-border)",
+  brand: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
   },
-  th: {
-    textAlign: "left",
-    padding: "10px 16px",
-    background: "var(--color-bg)",
-    color: "var(--color-text-dim)",
-    fontSize: "11px",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    borderBottom: "1px solid var(--color-border)",
-  },
-  td: {
-    padding: "12px 16px",
-    fontSize: "13px",
-    borderBottom: "1px solid var(--color-border)",
-  },
-  roleBadge: (role) => ({
-    display: "inline-block",
-    padding: "2px 10px",
-    borderRadius: "12px",
-    fontSize: "11px",
-    fontWeight: "600",
-    background:
-      role === "admin"
-        ? "rgba(31, 111, 235, 0.15)"
-        : "rgba(139, 148, 158, 0.15)",
-    color: role === "admin" ? "#58a6ff" : "var(--color-text-dim)",
-  }),
-  actionBtn: {
-    padding: "4px 10px",
-    background: "transparent",
-    color: "var(--color-text-dim)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "4px",
-    fontSize: "12px",
-    marginRight: "6px",
-  },
-  actionBtnDanger: {
-    padding: "4px 10px",
-    background: "transparent",
-    color: "var(--color-danger)",
-    border: "1px solid var(--color-danger)",
-    borderRadius: "4px",
-    fontSize: "12px",
-  },
-  modal: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0, 0, 0, 0.7)",
+  avatar: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #5856D6 0%, #AF52DE 100%)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 1000,
+    color: "#FFFFFF",
+    fontSize: "15px",
+    fontWeight: "700",
+    boxShadow: "0 2px 8px rgba(88, 86, 214, 0.24)",
   },
-  modalCard: {
+  brandText: {
+    display: "flex",
+    flexDirection: "column",
+    lineHeight: 1.2,
+  },
+  brandName: {
+    fontSize: "17px",
+    fontWeight: "600",
+    color: "var(--ios-text)",
+    letterSpacing: "-0.02em",
+  },
+  brandTag: {
+    fontSize: "12px",
+    color: "var(--ios-text-secondary)",
+  },
+  actions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  container: {
+    maxWidth: "760px",
+    margin: "0 auto",
+    padding: "24px 20px 60px",
+  },
+  largeTitle: {
+    fontSize: "34px",
+    fontWeight: "700",
+    letterSpacing: "-0.03em",
+    color: "var(--ios-text)",
+    marginBottom: "4px",
+  },
+  subtitle: {
+    fontSize: "15px",
+    color: "var(--ios-text-secondary)",
+    marginBottom: "28px",
+  },
+  toolbar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "20px",
+  },
+  countLabel: {
+    fontSize: "15px",
+    color: "var(--ios-text-secondary)",
+  },
+  groupWrap: {
+    marginBottom: "28px",
+  },
+  groupLabel: {
+    fontSize: "13px",
+    fontWeight: "400",
+    color: "var(--ios-text-secondary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    padding: "0 20px 8px 20px",
+  },
+  group: {
+    background: "var(--ios-surface)",
+    borderRadius: "var(--radius-md)",
+    overflow: "hidden",
+    boxShadow: "var(--shadow-xs)",
+    border: "1px solid var(--ios-separator)",
+  },
+  userRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    padding: "14px 16px",
+    borderBottom: "1px solid var(--ios-separator)",
+  },
+  userRowLast: {
+    borderBottom: "none",
+  },
+  userAvatar: (role) => ({
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#FFFFFF",
+    fontSize: "16px",
+    fontWeight: "600",
+    background:
+      role === "admin"
+        ? "linear-gradient(135deg, #007AFF 0%, #5856D6 100%)"
+        : "linear-gradient(135deg, #8E8E93 0%, #C7C7CC 100%)",
+    flexShrink: 0,
+  }),
+  userInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  userEmail: {
+    fontSize: "16px",
+    fontWeight: "500",
+    color: "var(--ios-text)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  userMeta: {
+    fontSize: "13px",
+    color: "var(--ios-text-secondary)",
+    marginTop: "2px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  roleBadge: (role) => ({
+    display: "inline-block",
+    padding: "2px 8px",
+    borderRadius: "6px",
+    fontSize: "11px",
+    fontWeight: "600",
+    letterSpacing: "0.02em",
+    background:
+      role === "admin"
+        ? "rgba(0, 122, 255, 0.12)"
+        : "rgba(142, 142, 147, 0.14)",
+    color: role === "admin" ? "var(--ios-blue)" : "var(--ios-text-secondary)",
+    textTransform: "uppercase",
+  }),
+  actionRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+  iconBtn: (variant) => ({
+    width: "34px",
+    height: "34px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--ios-surface-2)",
+    color:
+      variant === "danger" ? "var(--ios-red)" : "var(--ios-text-secondary)",
+    transition: "background 0.15s ease",
+  }),
+  status: (ok) => ({
+    padding: "12px 16px",
+    borderRadius: "var(--radius-md)",
+    fontSize: "14px",
+    marginBottom: "20px",
+    background: ok
+      ? "rgba(52, 199, 89, 0.10)"
+      : "rgba(255, 59, 48, 0.10)",
+    color: ok ? "var(--ios-green)" : "var(--ios-red)",
+    border: `1px solid ${
+      ok ? "rgba(52, 199, 89, 0.24)" : "rgba(255, 59, 48, 0.24)"
+    }`,
+  }),
+  modal: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0, 0, 0, 0.4)",
+    backdropFilter: "blur(6px)",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    zIndex: 1000,
+    padding: "20px",
+  },
+  sheet: {
     width: "100%",
     maxWidth: "440px",
-    background: "var(--color-bg-soft)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "8px",
-    padding: "24px",
+    background: "var(--ios-surface)",
+    borderRadius: "var(--radius-xl)",
+    padding: "28px 24px 24px",
+    boxShadow: "var(--shadow-lg)",
+    animation: "sheetSlideUp 0.24s ease",
+  },
+  sheetTitle: {
+    fontSize: "20px",
+    fontWeight: "700",
+    textAlign: "center",
+    letterSpacing: "-0.02em",
+    marginBottom: "4px",
+  },
+  sheetSubtitle: {
+    fontSize: "13px",
+    color: "var(--ios-text-secondary)",
+    textAlign: "center",
+    marginBottom: "24px",
   },
   label: {
     display: "block",
     fontSize: "12px",
     fontWeight: "600",
-    color: "var(--color-text-dim)",
-    marginBottom: "6px",
-    textTransform: "uppercase",
+    color: "var(--ios-text-secondary)",
+    marginBottom: "8px",
     letterSpacing: "0.04em",
+    textTransform: "uppercase",
   },
-  input: {
+  select: {
     width: "100%",
-    padding: "10px 12px",
-    background: "var(--color-bg)",
-    border: "1px solid var(--color-border)",
-    borderRadius: "6px",
-    color: "var(--color-text)",
-    marginBottom: "14px",
-  },
-  error: {
-    background: "rgba(248, 81, 73, 0.1)",
-    border: "1px solid var(--color-danger)",
-    color: "var(--color-danger)",
-    padding: "10px 12px",
-    borderRadius: "6px",
-    fontSize: "13px",
+    padding: "14px 16px",
+    fontSize: "16px",
+    background: "var(--ios-surface-2)",
+    border: "1px solid var(--ios-separator)",
+    borderRadius: "var(--radius-md)",
+    color: "var(--ios-text)",
     marginBottom: "16px",
+    appearance: "none",
   },
-  success: {
-    background: "rgba(63, 185, 80, 0.1)",
-    border: "1px solid var(--color-success)",
-    color: "var(--color-success)",
-    padding: "10px 12px",
-    borderRadius: "6px",
-    fontSize: "13px",
-    marginBottom: "16px",
+  sheetActions: {
+    display: "flex",
+    gap: "10px",
+    marginTop: "12px",
   },
 };
 
@@ -223,7 +315,7 @@ export default function Admin() {
       if (!response.ok) {
         throw new Error(data.detail || `HTTP ${response.status}`);
       }
-      setSuccess(`User ${data.email} berhasil dibuat`);
+      setSuccess(`User ${data.email} created successfully.`);
       setShowInvite(false);
       setInviteForm({ email: "", role: "analyst", password: "" });
       loadUsers();
@@ -248,7 +340,7 @@ export default function Admin() {
         const data = await response.json();
         throw new Error(data.detail || `HTTP ${response.status}`);
       }
-      setSuccess(`Role diubah ke ${newRole}`);
+      setSuccess(`Role updated to ${newRole}.`);
       loadUsers();
     } catch (err) {
       setError(err.message);
@@ -256,7 +348,7 @@ export default function Admin() {
   };
 
   const handleDelete = async (userId, email) => {
-    if (!window.confirm(`Hapus user ${email}?`)) return;
+    if (!window.confirm(`Delete user ${email}?`)) return;
     setError(null);
     setSuccess(null);
     try {
@@ -268,7 +360,7 @@ export default function Admin() {
         const data = await response.json();
         throw new Error(data.detail || `HTTP ${response.status}`);
       }
-      setSuccess(`User ${email} dihapus`);
+      setSuccess(`User ${email} deleted.`);
       loadUsers();
     } catch (err) {
       setError(err.message);
@@ -284,65 +376,91 @@ export default function Admin() {
     <div style={styles.page}>
       <header style={styles.header}>
         <div style={styles.brand}>
-          <div style={styles.brandName}>BIthere</div>
-          <div style={styles.brandTag}>Admin Panel</div>
+          <div style={styles.avatar}>
+            {user?.email ? user.email[0].toUpperCase() : "A"}
+          </div>
+          <div style={styles.brandText}>
+            <div style={styles.brandName}>Admin Panel</div>
+            <div style={styles.brandTag}>{user?.email || "Administrator"}</div>
+          </div>
         </div>
         <div style={styles.actions}>
-          <span style={styles.userEmail}>{user?.email}</span>
-          <Link to="/chat" style={styles.btn}>
-            Ke Chat
+          <Link
+            to="/chat"
+            className="ios-btn-ghost"
+            style={{
+              padding: "6px 12px",
+              fontSize: "14px",
+              borderRadius: "var(--radius-pill)",
+            }}
+          >
+            Back to Chat
           </Link>
-          <button style={styles.btn} onClick={handleLogout}>
+          <button
+            className="ios-btn-ghost"
+            onClick={handleLogout}
+            style={{
+              padding: "6px 12px",
+              fontSize: "14px",
+              borderRadius: "var(--radius-pill)",
+            }}
+          >
             Logout
           </button>
         </div>
       </header>
 
       <div style={styles.container}>
-        <h1 style={styles.title}>User Management</h1>
+        <h1 style={styles.largeTitle}>Users</h1>
         <div style={styles.subtitle}>
-          Kelola user, role, dan akses ke platform BIthere.
+          Manage user accounts, roles, and access to BIthere.
         </div>
 
-        {error && <div style={styles.error}>{error}</div>}
-        {success && <div style={styles.success}>{success}</div>}
+        {error && <div style={styles.status(false)}>{error}</div>}
+        {success && <div style={styles.status(true)}>{success}</div>}
 
         <div style={styles.toolbar}>
-          <div style={{ fontSize: "13px", color: "var(--color-text-dim)" }}>
-            {loading ? "Loading..." : `${users.length} user`}
-          </div>
+          <span style={styles.countLabel}>
+            {loading ? "Loading..." : `${users.length} user${users.length === 1 ? "" : "s"}`}
+          </span>
           <button
-            style={styles.btnPrimary}
+            className="ios-btn ios-btn-pill"
             onClick={() => setShowInvite(true)}
+            style={{ padding: "8px 16px", fontSize: "14px" }}
           >
-            + Invite User
+            <PlusIcon size={16} color="#FFFFFF" />
+            Invite User
           </button>
         </div>
 
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Email</th>
-              <th style={styles.th}>Role</th>
-              <th style={styles.th}>Created</th>
-              <th style={styles.th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td style={styles.td}>{u.email}</td>
-                <td style={styles.td}>
-                  <span style={styles.roleBadge(u.role)}>{u.role}</span>
-                </td>
-                <td style={{ ...styles.td, color: "var(--color-text-dim)" }}>
-                  {u.created_at
-                    ? new Date(u.created_at).toLocaleDateString("id-ID")
-                    : "-"}
-                </td>
-                <td style={styles.td}>
+        <div style={styles.groupWrap}>
+          <div style={styles.groupLabel}>All Users</div>
+          <div style={styles.group}>
+            {users.map((u, idx) => (
+              <div
+                key={u.id}
+                style={{
+                  ...styles.userRow,
+                  ...(idx === users.length - 1 ? styles.userRowLast : {}),
+                }}
+              >
+                <div style={styles.userAvatar(u.role)}>
+                  {u.email ? u.email[0].toUpperCase() : "U"}
+                </div>
+                <div style={styles.userInfo}>
+                  <div style={styles.userEmail}>{u.email}</div>
+                  <div style={styles.userMeta}>
+                    <span style={styles.roleBadge(u.role)}>{u.role}</span>
+                    <span>
+                      {u.created_at
+                        ? new Date(u.created_at).toLocaleDateString("en-GB")
+                        : "-"}
+                    </span>
+                  </div>
+                </div>
+                <div style={styles.actionRow}>
                   <button
-                    style={styles.actionBtn}
+                    className="ios-btn-ghost"
                     onClick={() =>
                       handleRoleChange(
                         u.id,
@@ -350,62 +468,70 @@ export default function Admin() {
                       )
                     }
                     disabled={u.id === user?.id}
+                    style={{
+                      padding: "6px 10px",
+                      fontSize: "13px",
+                      borderRadius: "8px",
+                    }}
+                    title={u.role === "admin" ? "Demote to analyst" : "Promote to admin"}
                   >
                     {u.role === "admin" ? "Demote" : "Promote"}
                   </button>
                   <button
-                    style={styles.actionBtnDanger}
+                    style={styles.iconBtn("danger")}
                     onClick={() => handleDelete(u.id, u.email)}
                     disabled={u.id === user?.id}
+                    title="Delete user"
+                    aria-label="Delete user"
                   >
-                    Delete
+                    <TrashIcon size={14} color="var(--ios-red)" />
                   </button>
-                </td>
-              </tr>
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
 
       {showInvite && (
         <div style={styles.modal} onClick={() => setShowInvite(false)}>
-          <div
-            style={styles.modalCard}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2
-              style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}
-            >
-              Invite User
-            </h2>
+          <div style={styles.sheet} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.sheetTitle}>Invite User</div>
+            <div style={styles.sheetSubtitle}>
+              Create a new account with a temporary password.
+            </div>
             <form onSubmit={handleInvite}>
               <label style={styles.label}>Email</label>
               <input
-                style={styles.input}
+                className="ios-input"
                 type="email"
                 value={inviteForm.email}
                 onChange={(e) =>
                   setInviteForm((s) => ({ ...s, email: e.target.value }))
                 }
+                placeholder="user@example.com"
                 required
                 autoFocus
+                style={{ marginBottom: "16px" }}
               />
 
               <label style={styles.label}>Temporary Password</label>
               <input
-                style={styles.input}
+                className="ios-input"
                 type="text"
                 value={inviteForm.password}
                 onChange={(e) =>
                   setInviteForm((s) => ({ ...s, password: e.target.value }))
                 }
+                placeholder="Minimum 6 characters"
                 minLength={6}
                 required
+                style={{ marginBottom: "16px" }}
               />
 
               <label style={styles.label}>Role</label>
               <select
-                style={styles.input}
+                style={styles.select}
                 value={inviteForm.role}
                 onChange={(e) =>
                   setInviteForm((s) => ({ ...s, role: e.target.value }))
@@ -415,22 +541,21 @@ export default function Admin() {
                 <option value="admin">Admin</option>
               </select>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div style={styles.sheetActions}>
                 <button
                   type="button"
-                  style={styles.btn}
+                  className="ios-btn ios-btn-secondary"
                   onClick={() => setShowInvite(false)}
+                  style={{ flex: 1 }}
                 >
-                  Batal
+                  Cancel
                 </button>
-                <button type="submit" style={styles.btnPrimary}>
-                  Buat User
+                <button
+                  type="submit"
+                  className="ios-btn"
+                  style={{ flex: 1 }}
+                >
+                  Create User
                 </button>
               </div>
             </form>

@@ -2,18 +2,19 @@ import json
 from app.agents.llm import generate_chat
 from app.core.logging import log_error
 
-INSIGHT_SYSTEM_PROMPT = """You are a senior Business Intelligence Analyst.
+INSIGHT_SYSTEM_PROMPT = """You are a senior Business Intelligence analyst.
 
-Given a user question and query results (JSON sample), produce a concise business insight.
+Given a user question and query results, produce a CONCISE executive insight.
+ALWAYS respond in English, regardless of the language of the user question.
 
-Rules:
-- Respond in the same language as the user question (Indonesian or English).
-- Highlight key numbers, trends, anomalies.
-- Suggest 1-2 actionable next steps.
-- Keep it under 150 words.
-- No markdown, no code fences.
-- If the result set is empty (0 rows), state clearly that no matching data was found. Do NOT invent information.
-- IMPORTANT: If the total rows exceed the sample size, explicitly state that the analysis is based on a sample of N rows, not the entire dataset.
+Structure (use markdown, keep it tight):
+1. One executive summary paragraph (max 2 sentences, ~30 words).
+2. Section "**Key Findings**" with 3 to 5 bullets. Each bullet starts with "- " and is max 15 words.
+3. Section "**Recommended Actions**" with 1 to 3 numbered items. Each item is max 15 words.
+
+Total length must be under 130 words. No fluff, no preamble, no closing remark.
+Do NOT write "Best regards" or any signature. Do NOT repeat the question.
+If the result set is empty, state that no matching data was found.
 """
 
 
@@ -27,8 +28,10 @@ async def analyze(user_prompt: str, results: list[dict]) -> str:
     # Guard: no data -> do not hallucinate
     if not results:
         return (
-            "Tidak ada data yang cocok dengan pertanyaan Anda di dataset. "
-            "Coba periksa kembali kata kunci atau rentang tanggalnya."
+            "**Summary**\n"
+            "No matching data was found for this query.\n\n"
+            "**Recommended Actions**\n"
+            "1. Refine the date range or filters and try again."
         )
 
     total_rows = len(results)
@@ -58,4 +61,9 @@ async def analyze(user_prompt: str, results: list[dict]) -> str:
         return await generate_chat(messages, temperature=0.3)
     except Exception as exc:
         log_error(f"Insight analyzer failed: {exc}")
-        return "Gagal membuat insight dari hasil query."
+        return (
+            "**Summary**\n"
+            "Insight generation failed.\n\n"
+            "**Recommended Actions**\n"
+            "1. Retry the request."
+        )
