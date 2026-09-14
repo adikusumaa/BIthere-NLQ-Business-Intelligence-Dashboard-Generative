@@ -763,7 +763,16 @@ async def render_dashboard_pages(
         log_error(f"render_dashboard_pages failed: {exc}")
         return _fail(str(exc))
 
-
+def _extract_conflict_id(error_text: str) -> int | None:
+    """Extract the conflicting dashboard ID from a Metabase error."""
+    match = re.search(r"key:(\d+)", error_text or "")
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+    
 async def render_dashboard_dynamic(config: dict) -> dict[str, Any]:
     """
     Render a dashboard config — single-page or multi-page.
@@ -966,6 +975,28 @@ async def render_dashboard_dynamic(config: dict) -> dict[str, Any]:
                 headers=headers,
                 json=payload,
             )
+
+            if resp.status_code >= 400:
+                conflict_id = _extract_conflict_id(resp.text)
+                if conflict_id is not None:
+                    log_warning(
+                        f"dashboard: Metabase conflict on id={conflict_id}; "
+                        f"removing and retrying"
+                    )
+                    try:
+                        await client.delete(
+                            f"/api/dashboard/{conflict_id}", headers=headers
+                        )
+                    except Exception as cleanup_exc:
+                        log_error(
+                            f"dashboard: cleanup failed: {cleanup_exc}"
+                        )
+                    resp = await client.put(
+                        f"/api/dashboard/{dashboard_id}",
+                        headers=headers,
+                        json=payload,
+                    )
+
             if resp.status_code >= 400:
                 log_error(
                     f"Dashboard PUT failed: {resp.status_code} "
