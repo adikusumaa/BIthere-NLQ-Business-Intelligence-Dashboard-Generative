@@ -5,7 +5,7 @@ FastAPI entry point for BIthere API.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth
+from app.api.routes import auth, chat
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -25,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(chat.router)
 
 
 @app.get("/", tags=["Health"])

@@ -1,13 +1,13 @@
 """
 Authentication and authorization utilities for BIthere.
-Handles JWT verification against Supabase Auth.
+Validates Supabase tokens via the Supabase Auth API.
 """
 
 from typing import Optional
 
+import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 from supabase import Client, create_client
 
 from app.core.config import settings
@@ -18,41 +18,49 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_supabase_client() -> Client:
-    """
-    Returns a Supabase client instance using service role key.
-    """
+    """Return a Supabase client using the service role key."""
 
-    return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    return create_client(
+        settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
+    )
 
 
-def verify_jwt_token(token: str) -> dict:
-    """
-    Verifies JWT token from Supabase and returns payload.
-    """
+async def _verify_token_with_supabase(token: str) -> dict:
+    """Verify a Supabase access token by calling the Auth API."""
+
+    url = f"{settings.SUPABASE_URL}/auth/v1/user"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "apikey": settings.SUPABASE_ANON_KEY,
+    }
 
     try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False},
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, headers=headers)
+    except Exception as error:
+        logger.error(f"Supabase auth call failed: {str(error)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication service unavailable",
         )
-        return payload
-    except JWTError as error:
-        logger.error(f"JWT verification failed: {str(error)}")
+
+    if response.status_code != 200:
+        logger.error(
+            f"Supabase rejected token ({response.status_code}): "
+            f"{response.text[:200]}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
         )
 
+    return response.json()
+
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
-    """
-    Extracts user information from JWT token.
-    Returns user payload with id and email.
-    """
+    """Extract user info from the Authorization header."""
 
     if not credentials:
         raise HTTPException(
@@ -61,32 +69,39 @@ async def get_current_user(
         )
 
     token = credentials.credentials
-    payload = verify_jwt_token(token)
+    user_payload = await _verify_token_with_supabase(token)
 
-    user_id = payload.get("sub")
+    user_id = user_payload.get("id")
+    email = user_payload.get("email")
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
 
-    supabase = get_supabase_client()
-    response = supabase.table("profiles").select("*").eq("id", user_id).execute()
-
-    if not response.data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User profile not found",
+    role = "analyst"
+    try:
+        supabase = get_supabase_client()
+        profile = (
+            supabase.table("profiles")
+            .select("*")
+            .eq("id", user_id)
+            .execute()
         )
+        if profile.data:
+            role = profile.data[0].get("role", "analyst")
+    except Exception as error:
+        logger.warning(f"Profile lookup failed, using default role: {error}")
 
-    return response.data[0]
+    return {
+        "id": user_id,
+        "email": email,
+        "role": role,
+    }
 
 
 def require_role(required_role: str):
-    """
-    Dependency factory to check user role.
-    Usage: Depends(require_role("admin"))
-    """
+    """Dependency factory that enforces a specific role."""
 
     async def role_checker(user: dict = Depends(get_current_user)) -> dict:
         if user.get("role") != required_role:
