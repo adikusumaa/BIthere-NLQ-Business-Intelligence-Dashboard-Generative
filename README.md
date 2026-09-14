@@ -146,7 +146,10 @@ An abstraction layer allows the system to connect to PostgreSQL, MySQL, or Mongo
 ![Filtering Dashboard](img/Flltering%20dashboard.png)  
 *Global filters bound to every chart across all pages.*
 
-![Mastercard Filtering](img/mastercard%20filtering.png)  
+![Build Dashboard](img/promting%20to%20build%20or%20just%20sql.png)  
+*Clicking a chart segment automatically applies the corresponding filter.*
+
+![Mastercard Filtering](img/mastercard%20flltering.png)  
 *Clicking a chart segment automatically applies the corresponding filter.*
 
 ### Report Delivery & Notifications
