@@ -1,36 +1,59 @@
+"""
+Query Generator Agent.
+Converts natural language questions into safe SQL queries (PostgreSQL dialect).
+"""
+
 import re
+
 from app.agents.llm import generate_chat
-from app.core.logging import log_info
+from app.core.logging import log_info, log_error
 
-QUERY_GEN_SYSTEM_PROMPT = """You are a SQL Query Generator for PostgreSQL.
-Given the user's question and the database schema context, produce ONE valid SELECT query.
 
-Dataset schema facts (MUST follow):
-- `fraud_labels.fraud_label` is TEXT with values 'Yes' or 'No'.
-  NEVER compare fraud_label to TRUE / FALSE / 1 / 0.
-  Always use: fraud_label = 'Yes' or fraud_label = 'No'.
-- `transactions.date` is TIMESTAMP. Filter dates with explicit ranges, e.g.:
-  date >= DATE '2010-01-01' AND date < DATE '2010-02-01'.
-- `transactions.errors` is TEXT and may be NULL. Empty error means errors IS NULL or errors = ''.
-- `cards.card_on_dark_web` is BOOLEAN (true / false).
+QUERY_GEN_SYSTEM_PROMPT = """You are a PostgreSQL query generator for a fintech fraud-detection dataset.
 
-Join keys:
+SCHEMA (only these columns exist, never invent new ones):
+
+users:
+  id, current_age, retirement_age, birth_year, birth_month,
+  gender, address, latitude, longitude, per_capita_income,
+  yearly_income, total_debt, credit_score, num_credit_cards
+
+cards:
+  id, client_id, card_brand, card_type, card_number, expires, cvv,
+  has_chip, num_cards_issued, credit_limit, acct_open_date,
+  year_pin_last_changed, card_on_dark_web
+
+transactions:
+  id, date, client_id, card_id, amount, use_chip,
+  merchant_id, merchant_city, merchant_state, zip, mcc, errors
+
+fraud_labels:
+  id, fraud_label (values: 'Yes' or 'No')
+
+mcc_codes:
+  mcc_code, description
+
+JOIN KEYS:
 - transactions.client_id = users.id
-- transactions.card_id   = cards.id
-- transactions.mcc       = mcc_codes.mcc_code
-- transactions.id        = fraud_labels.id
+- transactions.card_id = cards.id
+- transactions.mcc = mcc_codes.mcc_code
+- transactions.id = fraud_labels.id
 
-Rules:
-- ONLY SELECT statements.
-- NEVER use DROP, DELETE, UPDATE, INSERT, TRUNCATE, ALTER.
-- Use explicit JOINs when needed.
-- Always add LIMIT 1000 for exploratory queries if no aggregation.
-- Return ONLY the SQL query, no markdown, no explanation.
+RULES:
+- ONLY produce a single SELECT statement.
+- NEVER use DROP, DELETE, UPDATE, INSERT, TRUNCATE, ALTER, CREATE.
+- Use explicit JOINs with aliases: t, c, u, f, m.
+- Fraud filter: f.fraud_label = 'Yes' (TEXT, use quotes).
+- Date filter: use explicit ranges like
+    date >= DATE '2010-01-01' AND date < DATE '2010-02-01'.
+- Geographic: use t.merchant_state or t.merchant_city (NOT u.state).
+- Add LIMIT 1000 for non-aggregated queries if no LIMIT is present.
+- Return ONLY the SQL query, no markdown, no explanation, no code fences.
 """
 
 
 def _extract_sql(raw: str) -> str:
-    """Strip code fences if LLM wraps SQL in them."""
+    """Strip markdown code fences from LLM output if present."""
     cleaned = raw.strip()
     cleaned = re.sub(r"^```(?:sql)?\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*```$", "", cleaned)
@@ -38,9 +61,9 @@ def _extract_sql(raw: str) -> str:
 
 
 async def generate_query(user_prompt: str, metadata_context: str) -> str:
-    """Generate SQL query from natural language using RAG context."""
+    """Generate a safe SQL query from natural language using RAG context."""
     user_message = (
-        f"Schema context:\n{metadata_context}\n\n"
+        f"Additional schema context from RAG:\n{metadata_context}\n\n"
         f"User question: {user_prompt}\n\n"
         f"SQL query:"
     )
@@ -50,7 +73,12 @@ async def generate_query(user_prompt: str, metadata_context: str) -> str:
         {"role": "user", "content": user_message},
     ]
 
-    raw = await generate_chat(messages, temperature=0.0)
+    try:
+        raw = await generate_chat(messages, temperature=0.0)
+    except Exception as exc:
+        log_error(f"Query generator LLM call failed: {exc}")
+        raise
+
     sql = _extract_sql(raw)
     log_info(f"Generated SQL length: {len(sql)} chars")
     return sql
