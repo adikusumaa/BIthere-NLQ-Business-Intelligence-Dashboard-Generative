@@ -136,21 +136,35 @@ An abstraction layer allows the system to connect to PostgreSQL, MySQL, or Mongo
 ## Additional Interface Screenshots
 
 ### Chat Interface
-![Chat Page](img/Chat%20page.png)
+![Chat Page](img/Chat%20page.png)  
+*Streaming chat interface with support for multiple conversation sessions.*
 
 ### Multi-Page Dashboard & Filtering
-![Dashboard Page 2](img/dashboard%20page%202.png)
-![Filtering Dashboard](img/Flltering%20dashboard.png)
-![Mastercard Filtering](img/mastercard%20filtering.png)
+![Dashboard Page 2](img/dashboard%20page%202.png)  
+*Second page of the dashboard with detailed segment analysis.*
+
+![Filtering Dashboard](img/Flltering%20dashboard.png)  
+*Global filters bound to every chart across all pages.*
+
+![Mastercard Filtering](img/mastercard%20filtering.png)  
+*Clicking a chart segment automatically applies the corresponding filter.*
 
 ### Report Delivery & Notifications
-![Export PDF, Email, Slack](img/Export%20pdf%2C%20email%2C%20slack.png)
-![Slack Notif](img/slack%20notif.png)
-![On iPhone Email](img/on%20iphone%20email.jpeg)
+![Export PDF, Email, Slack](img/Export%20pdf%2C%20email%2C%20slack.png)  
+*Reports dispatched through email, Slack, or exported as PDF.*
+
+![Slack Notif](img/slack%20notif.png)  
+*Real-time Slack alerts with dashboard URL and summary.*
+
+![On iPhone Email](img/on%20iphone%20email.jpeg)  
+*Email report rendered on mobile with inline dashboard screenshots.*
 
 ### Admin & User Management
-![Admin Page](img/Admin%20page.png)
-![Adding User](img/Adding%20user.png)
+![Admin Page](img/Admin%20page.png)  
+*User management with role control, invitation flow, and audit visibility.*
+
+![Adding User](img/Adding%20user.png)  
+*Admin-only workflow for inviting new users with role assignment.*
 
 ---
 
@@ -246,14 +260,14 @@ The platform is demonstrated against a fintech fraud dataset loaded into Supabas
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/adikusumaa/BIthere_NLQ-Chatbot-Dashboard-Generation.git
+git clone [https://github.com/adikusumaa/BIthere_NLQ-Chatbot-Dashboard-Generation.git](https://github.com/adikusumaa/BIthere_NLQ-Chatbot-Dashboard-Generation.git)
 cd BIthere_NLQ-Chatbot-Dashboard-Generation
 ```
 
 ### 2. Configure Environment Variables
 Copy `.env.example` to `.env` and populate all required values:
 ```env
-SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_URL=[https://your-project.supabase.co](https://your-project.supabase.co)
 SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_DB_URL=postgresql://postgres.your-ref:password@aws-0-region.pooler.supabase.com:5432/postgres
