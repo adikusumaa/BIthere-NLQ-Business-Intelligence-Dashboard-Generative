@@ -30,8 +30,8 @@ The system is designed for organizations where business users depend on data ana
 
 | Authentication & NL Prompt | Generated Dashboard & Insight |
 | :--- | :--- |
-| ![Login Page](img/Login%20Page.png)<br>*Secure JWT-based session login* | ![Dashboard Created](img/dashboard%20created.png)<br>*Auto-generated visualization dashboard* |
-| ![User Prompting](img/user%20promting.png)<br>*Natural language query entry* | ![Insight](img/Insight.png)<br>*AI-generated executive summary & findings* |
+| ![Login Page](img/img2/LoginPage.png)<br>*Secure JWT-based session login* | ![Dashboard Created](img/img2/NLQSinglePage.png)<br>*Auto-generated visualization dashboard* |
+| ![User Prompting](img/img2/NLQChat.png)<br>*Natural language query entry* | ![Insight](img/img2/queryChat.png)<br>*AI-generated executive summary & findings* |
 
 ---
 
@@ -136,20 +136,20 @@ An abstraction layer allows the system to connect to PostgreSQL, MySQL, or Mongo
 ## Additional Interface Screenshots
 
 ### Chat Interface
-![Chat Page](img/Chat%20page.png)  
+![Chat Page](img/img2/Interface.png)  
 *Streaming chat interface with support for multiple conversation sessions.*
 
 ### Multi-Page Dashboard & Filtering
-![Dashboard Page 2](img/dashboard%20page%202.png)  
+![Dashboard Page 2](img/img2/NLQDashboardMultiPage2.png)  
 *Second page of the dashboard with detailed segment analysis.*
 
-![Filtering Dashboard](img/Flltering%20dashboard.png)  
+![Filtering Dashboard](img/img2/NLQDashboardMultiPagewithFilter.png)  
 *Global filters bound to every chart across all pages.*
 
-![Build Dashboard](img/promting%20to%20build%20or%20just%20sql.png)  
+![Build Dashboard](img/img2/NLQDashboardGeoChat.png)  
 *Clicking a chart segment automatically applies the corresponding filter.*
 
-![Mastercard Filtering](img/mastercard%20flltering.png)  
+![Mastercard Filtering](img/img2/NLQDashboardMultiPageMastercardFilter.png)  
 *Clicking a chart segment automatically applies the corresponding filter.*
 
 ### Report Delivery & Notifications
@@ -163,10 +163,11 @@ An abstraction layer allows the system to connect to PostgreSQL, MySQL, or Mongo
 *Email report rendered on mobile with inline dashboard screenshots.*
 
 ### Admin & User Management
-![Admin Page](img/Admin%20page.png)  
+![Admin Page](img/img2/AdminUserOrganize.png)  
 *User management with role control, invitation flow, and audit visibility.*
 
-![Adding User](img/Adding%20user.png)  
+![Adding User](img/img2/NLQDashboardComplex.png) 
+![Adding User 2](img/img2/NLQDashboardComplex_2.png)  
 *Admin-only workflow for inviting new users with role assignment.*
 
 ---

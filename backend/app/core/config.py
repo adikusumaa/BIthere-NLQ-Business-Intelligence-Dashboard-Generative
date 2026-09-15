@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     METABASE_URL: str = "http://localhost:3000"
+    METABASE_PUBLIC_URL: str = "http://localhost:3000"
     METABASE_USERNAME: str = "admin@bithere.com"
     METABASE_PASSWORD: str = "admin123456"
 

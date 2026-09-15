@@ -121,6 +121,24 @@ Filter and cross-filter rules:
 - filter.target_tag must exactly match the tag used in SQL.
 - The chart that drives a filter must NOT reference that filter tag in its SQL.
 - Add crossfilter only to charts whose dimension matches a filter column.
+
+MAP CHART RULES (CRITICAL):
+- To render a geographic map in Metabase, use display="map".
+- The SQL must return exactly two columns:
+    1. A 2-letter US state code as the first column (e.g. 'CA', 'NY', 'TX').
+    2. A numeric metric as the second column (e.g. COUNT(*)).
+- The chart MUST include:
+    "dimension": "<state_column_alias>"
+    "metric": "<metric_column_alias>"
+- Example SQL for map chart:
+    SELECT t.merchant_state AS state, COUNT(*) AS fraud_count
+    FROM transactions t
+    JOIN fraud_labels f ON t.id = f.id
+    WHERE f.fraud_label = 'Yes'
+      AND LENGTH(t.merchant_state) = 2
+    GROUP BY t.merchant_state
+- Do NOT use full state names like 'California'. Only 2-letter codes.
+- Filter rows with NULL or empty state values.
 """
 
 

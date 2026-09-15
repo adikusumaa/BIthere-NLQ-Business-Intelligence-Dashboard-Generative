@@ -250,6 +250,27 @@ def _visualization_defaults(
             s["graph.metrics"] = [metric]
         return s
 
+    if display == "map":
+        s = {}
+        if dimension:
+            s["map.dimension_column"] = dimension
+        if metric:
+            s["map.metric_column"] = metric
+        s["map.type"] = "region"
+        s["map.region"] = "us_states"
+        s["map.colors"] = [
+            "#F0F9FF",
+            "#BAE6FD",
+            "#7DD3FC",
+            "#38BDF8",
+            "#0EA5E9",
+            "#0284C7",
+            "#0369A1",
+            "#075985",
+            "#0C4A6E",
+        ]
+        return s
+
     if display in ("pie", "donut"):
         s = {}
         if dimension:
@@ -385,7 +406,9 @@ async def _enable_public_link(
     client: httpx.AsyncClient, headers: dict, dashboard_id: int
 ) -> str:
     """Enable public sharing and return the public URL."""
-    fallback = f"{settings.METABASE_URL}/dashboard/{dashboard_id}"
+    public_base = getattr(settings, "METABASE_PUBLIC_URL", None) or settings.METABASE_URL
+    fallback = f"{public_base}/dashboard/{dashboard_id}"
+
     try:
         resp = await client.post(
             f"/api/dashboard/{dashboard_id}/public_link", headers=headers
@@ -393,7 +416,7 @@ async def _enable_public_link(
         if resp.status_code == 200:
             uuid_value = resp.json().get("uuid")
             if uuid_value:
-                url = f"{settings.METABASE_URL}/public/dashboard/{uuid_value}"
+                url = f"{public_base}/public/dashboard/{uuid_value}"
                 log_success(f"Public link enabled: {url}")
                 return url
     except Exception as exc:

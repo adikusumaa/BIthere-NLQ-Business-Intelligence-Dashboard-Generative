@@ -47,6 +47,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       METABASE_URL: http://metabase:3000
+      METABASE_PUBLIC_URL: http://localhost:3000
     volumes:
       - ./backend:/app
       - ./reports:/app/reports

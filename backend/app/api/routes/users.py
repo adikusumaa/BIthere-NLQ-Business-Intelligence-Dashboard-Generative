@@ -7,7 +7,7 @@ Wraps Supabase Auth admin API and the profiles table.
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
 from app.core.security import get_supabase_client, require_role
@@ -25,7 +25,7 @@ class UserSummary(BaseModel):
 
 
 class InviteUserRequest(BaseModel):
-    email: EmailStr
+    email: str
     role: str = Field(default="analyst", pattern="^(admin|analyst)$")
     password: str = Field(..., min_length=6, max_length=72)
 
