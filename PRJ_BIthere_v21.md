@@ -1048,3 +1048,1198 @@ v2: 🟡 Perencanaan
 ☑ Menyusun langkah implementasi (Tahap 1–10)
 □ Mulai eksekusi Tahap 1
 Selanjutnya → Tahap 1: Persiapan dan Fondasi Multi-Tenant
+
+
+Addendum v2 — Fitur F-13: Iterative Dashboard Editor (Conversational Patch-Based Editing)
+Incremental Chart Editing · Patch-Based Update · Conversational Refinement · Version Control · Live Preview · Tetap Berbasis Metabase
+
+📖 Project Description (Update)
+BIthere v2 — Addendum F-13 menambahkan kapabilitas fundamental baru pada Dashboard Builder: iterative editing tanpa regenerasi penuh.
+
+Di versi sebelumnya (v1) dan rancangan v2 awal, Dashboard Builder bekerja secara generate-from-scratch: setiap kali user meminta perubahan, sistem akan menghapus semua chart, lalu generate ulang seluruh dashboard dari awal. Akibatnya:
+
+User yang sudah puas dengan 5 chart tidak bisa "hanya menambah 1 chart baru" — semua harus di-generate ulang.
+
+Perubahan warna pada 1 chart memaksa re-query dan re-render semua chart.
+
+Filter yang sudah disetel user bisa hilang saat regenerasi.
+
+Biaya token LLM membengkak karena setiap iterasi adalah "generate ulang dari nol".
+
+User kehilangan kontrol granular atas dashboard mereka.
+
+Addendum F-13 mengubah paradigma ini menjadi patch-based conversational editing:
+
+Setiap instruksi user diterjemahkan menjadi patch (diff) terstruktur yang hanya menyentuh bagian yang ingin diubah. Sisanya tetap utuh — posisi, warna, data, filter, tidak berubah kecuali diminta.
+
+Visi F-13: "User cukup bilang apa yang ingin diubah. Yang lain dibiarkan apa adanya."
+
+Contoh Interaksi Real
+text
+[Iterasi 1]
+User: "Buat dashboard fraud dengan KPI cards, monthly trend, dan top 10 states."
+Bot:  ✓ Dashboard v1 dibuat dengan 3 chart.
+
+[Iterasi 2 — TAMBAH CHART]
+User: "Tambahkan chart bar di atas chart 'Top 10 States' 
+       dengan judul 'Fraud by Card Brand', warna biru."
+Bot:  ✓ Patch applied. Chart baru ditambahkan di posisi diminta.
+     3 chart lama tetap utuh.
+
+[Iterasi 3 — TUKAR POSISI]
+User: "Tukar posisi antara 'Monthly Trend' dan 'Fraud by Card Brand'."
+Bot:  ✓ Patch applied. Hanya posisi 2 chart yang ditukar.
+
+[Iterasi 4 — UBAH WARNA]
+User: "Ubah warna 'Monthly Trend' jadi merah."
+Bot:  ✓ Patch applied. Hanya warna 1 chart yang diubah.
+
+[Iterasi 5 — TAMBAH FILTER]
+User: "Tambahkan filter 'card_brand' yang berlaku untuk semua chart."
+Bot:  ✓ Patch applied. Filter baru ditambahkan.
+     Semua chart, warna, posisi tetap seperti sebelumnya.
+
+[Iterasi 6 — HAPUS CHART]
+User: "Hapus chart 'Top 10 States'."
+Bot:  ✓ Patch applied. Chart dihapus, chart lain bergeser otomatis.
+
+[Iterasi 7 — ROLLBACK]
+User: "Kembalikan ke versi 4."
+Bot:  ✓ Dashboard di-rollback ke versi 4.
+Setiap langkah hanya mengubah yang diminta. Tidak ada regenerasi penuh.
+
+🎯 Tujuan & Keunggulan Utama (F-13)
+Patch-Based Update (Bukan Regenerate)
+Dashboard direpresentasikan sebagai state tree JSON di database. Setiap instruksi user menjadi patch terstruktur yang diterapkan pada state tersebut. Hanya bagian yang diminta yang berubah.
+
+Conversational Refinement
+User bisa berbicara natural: "tambahkan chart di atas X", "tukar posisi Y dan Z", "ubah warna chart ini jadi merah", "tambahkan filter card_brand". LLM menerjemahkan ke patch.
+
+Preserve Everything Else
+Chart yang tidak disebut tidak disentuh: warna, judul, query, posisi, filter, sorting — semua tetap. Ini kunci UX yang diinginkan.
+
+Version Control & Rollback
+Setiap patch = versi baru. User bisa lihat history, diff antar versi, dan rollback ke versi manapun.
+
+Live Preview (Before/After)
+Sebelum Apply, user lihat preview visual perubahan. Bisa Accept, Reject, atau Edit Manual.
+
+Manual Edit Mode
+Jika patch tidak sesuai ekspektasi, user bisa edit manual (drag/resize chart di UI, ubah properti di panel). Semua perubahan manual juga menghasilkan patch — sehingga tetap konsisten dengan state model.
+
+Tetap Berbasis Metabase
+Dashboard di-host di Metabase. Sistem kita hanya menjadi state manager + patch engine. Setiap patch diterjemahkan menjadi Metabase API call yang sesuai (update dashcard, update card, dst.).
+
+Idempotent & Konflik-Aware
+Jika patch di-apply dua kali, hasilnya sama. Jika patch konflik dengan state (misal: "hapus chart X" padahal X sudah tidak ada), sistem memberi tahu dengan jelas.
+
+Token Efficiency
+Karena hanya memproses "perubahan", konteks yang dikirim ke LLM jauh lebih kecil daripada "generate ulang dari nol". Menghemat token 5–10x.
+
+⚡ New Feature (Tambahan)
+ID	Fitur	Deskripsi	Prioritas
+F-13	Iterative Dashboard Editor	Patch-based conversational editing	P0
+F-13.1	Dashboard State Model	Representasi JSON lengkap dashboard (pages, cards, layout, filters)	P0
+F-13.2	Intent Parser Agent	LLM → patch terstruktur (JSON)	P0
+F-13.3	Patch Validator	Validasi patch terhadap state saat ini	P0
+F-13.4	Patch Applier	Apply patch ke state + translate ke Metabase API	P0
+F-13.5	Live Preview (Before/After)	Preview visual sebelum commit	P1
+F-13.6	Version Control & Rollback	Simpan versi, diff, rollback	P0
+F-13.7	Manual Edit Mode	Drag/resize/property panel di UI	P1
+F-13.8	Patch History UI	Timeline perubahan + diff viewer	P2
+F-13.9	Conflict Detection	Deteksi patch yang konflik dengan state	P1
+F-13.10	Undo/Redo Stack	Undo/redo per patch	P2
+Tabel Komponen Teknologi New Feature (F-13)
+Komponen	Teknologi	Keterangan
+Dashboard State Store	PostgreSQL dashboard_versions (JSONB)	Simpan state tiap versi
+Patch Model	Pydantic discriminated union	10+ tipe patch terstruktur
+Intent Parser Agent	Groq Llama 3.3 70B + JSON mode	NL → patch
+Patch Validator	Pydantic + custom rules	Validasi semantik patch
+Patch Applier	Python + JSON patch library	Apply patch ke state
+Metabase Adapter	httpx async + Metabase API v0.48+	Translate patch ke API call
+Diff Viewer	React Diff Viewer (jsondiffpatch)	Tampilkan before/after
+Live Preview	React + iframe Metabase embed	Preview via query param ?preview=1
+Version Control	Git-like branching (opsional)	Simpan setiap versi + parent_version_id
+Conflict Detector	Optimistic locking (version number)	Tolak patch jika versi berubah
+Manual Edit UI	react-grid-layout	Drag/resize chart
+Undo/Redo Stack	Zustand + Redis	Simpan stack patch per session
+Patch Audit	PostgreSQL dashboard_patches	Log semua patch + hasil
+🧠 Alur Kerja Singkat (End-to-End) — F-13
+6.1 Alur Iterasi Pertama (Generate Awal)
+User ketik: "Buat dashboard fraud dengan 3 chart: KPI cards, monthly trend, top 10 states."
+
+Planner Agent → intent = create_dashboard.
+
+Dashboard Builder Agent → generate state v1 (JSON lengkap).
+
+Metabase Adapter → buat dashboard + cards via Metabase API.
+
+State Store → simpan sebagai version 1.
+
+Frontend → render iframe Metabase.
+
+User lihat hasil.
+
+6.2 Alur Iterasi Berikutnya (Patch)
+User ketik: "Tambahkan chart bar di atas 'Top 10 States' dengan judul 'Fraud by Card Brand', warna biru."
+
+Planner Agent → intent = edit_dashboard, target = add_card.
+
+Dashboard State Loader → load state versi terakhir (v1).
+
+Intent Parser Agent (Groq) → menerima (instruksi + state v1) → output patch JSON:
+
+json
+{
+  "patch_type": "ADD_CARD",
+  "target_page": "page-1",
+  "insert_before": "card-top10states",
+  "card": {
+    "type": "bar",
+    "title": "Fraud by Card Brand",
+    "sql": "SELECT card_brand, COUNT(*) FROM ...",
+    "style": { "color": "#3b82f6" }
+  }
+}
+Patch Validator → cek: apakah card-top10states ada? Apakah SQL valid? Apakah title unik? → OK.
+
+Live Preview → generate "state v2 (draft)" → render preview di UI (Metabase preview mode).
+
+User klik Accept.
+
+Patch Applier → apply patch ke state → hasil state v2.
+
+Metabase Adapter → translate patch ke Metabase API:
+
+POST /api/card (buat card baru)
+
+POST /api/dashboard/:id/cards (tambahkan ke dashboard)
+
+PUT /api/dashboard/:id/cards (update layout jika perlu reorder)
+
+State Store → simpan sebagai version 2 (parent = version 1).
+
+Frontend → re-render iframe.
+
+6.3 Alur Manual Edit
+User drag chart "Monthly Trend" ke posisi lain.
+
+Frontend generate patch MOVE_CARD dan kirim ke backend.
+
+Patch Validator → cek posisi baru valid (tidak overlap).
+
+Patch Applier → apply + call Metabase API.
+
+State Store → simpan versi baru.
+
+6.4 Alur Rollback
+User klik "Rollback ke versi 4".
+
+State Store → load state versi 4.
+
+Diff antara versi saat ini dan versi 4 → generate reverse patches.
+
+Patch Applier → apply reverse patches → state saat ini = state versi 4.
+
+Metabase Adapter → sinkronkan (hapus card yang ditambahkan setelah v4, kembalikan warna, dst.).
+
+State Store → simpan sebagai versi baru (version 4-rollback, parent = versi saat ini).
+
+🛠️ Tech Stack Ringkasan (Tambahan F-13)
+Kategori	Teknologi
+State Store	PostgreSQL JSONB (dashboard_versions)
+Patch Format	Pydantic discriminated union
+NL → Patch	Groq Llama 3.3 70B (JSON mode)
+Patch Apply	Python (custom + jsonpatch)
+Metabase Sync	httpx async + Metabase API
+Diff Viewer	jsondiffpatch + React component
+Layout Editor	react-grid-layout (drag/resize)
+Preview Render	Metabase embed with preview param
+Version Control	Custom (parent_version_id, branch opsional)
+Conflict Detection	Optimistic locking (version integer)
+Undo/Redo	Zustand + Redis stack
+Audit	PostgreSQL dashboard_patches
+Struktur Folder (Tambahan)
+text
+bithere/
+├── backend/
+│   └── app/
+│       └── dashboard/                    # NEW: F-13 module
+│           ├── state_model.py            # DashboardState Pydantic
+│           ├── patch_model.py            # Patch discriminated union
+│           ├── patch_validator.py        # Validasi patch
+│           ├── patch_applier.py          # Apply patch ke state
+│           ├── intent_parser.py          # LLM → patch
+│           ├── state_store.py            # Simpan/load versi
+│           ├── version_control.py        # Rollback, diff, history
+│           ├── conflict_detector.py      # Optimistic lock
+│           ├── metabase_adapter.py       # State → Metabase API
+│           └── tests/
+│               ├── test_patch_model.py
+│               ├── test_patch_validator.py
+│               ├── test_patch_applier.py
+│               ├── test_intent_parser.py
+│               ├── test_version_control.py
+│               └── test_metabase_adapter.py
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   └── dashboard-editor/         # NEW
+│       │       ├── DashboardEditor.jsx
+│       │       ├── PatchHistoryPanel.jsx
+│       │       ├── DiffViewer.jsx
+│       │       ├── LivePreview.jsx
+│       │       ├── ManualEditCanvas.jsx  # react-grid-layout
+│       │       └── PropertyPanel.jsx     # edit warna, judul, dsb.
+│       └── pages/
+│           └── DashboardEditorPage.jsx   # NEW
+└── scripts/
+    └── migrations/
+        └── 003_dashboard_versions.sql    # NEW
+6. Kebutuhan Fungsional (Tambahan)
+6.3 Fungsional v2 — F-13 (Iterative Dashboard Editor)
+ID	Kebutuhan	Deskripsi	Prioritas
+FR-21	Dashboard State Model	Sistem menyimpan state dashboard sebagai JSON terstruktur (pages, cards, layout, filters)	P0
+FR-22	Patch Generation	Sistem menerjemahkan instruksi NL user menjadi patch terstruktur (JSON)	P0
+FR-23	Patch Types	Sistem mendukung minimal 10 tipe patch: ADD_CARD, REMOVE_CARD, MOVE_CARD, RESIZE_CARD, CHANGE_COLOR, CHANGE_TITLE, CHANGE_CHART_TYPE, ADD_FILTER, REMOVE_FILTER, UPDATE_SQL	P0
+FR-24	Patch Validation	Sebelum apply, patch divalidasi terhadap state saat ini (referential integrity, uniqueness, SQL validity)	P0
+FR-25	Patch Application	Patch di-apply ke state → hasil state baru	P0
+FR-26	Preserve Non-Targeted	Chart/property yang tidak disebut dalam patch tidak berubah sama sekali	P0
+FR-27	Metabase Sync	Setiap patch diterjemahkan menjadi Metabase API call yang sesuai	P0
+FR-28	Version Control	Setiap patch menghasilkan versi baru (parent_version_id)	P0
+FR-29	Rollback	User dapat rollback ke versi manapun	P0
+FR-30	Diff Viewer	UI menampilkan diff (before/after) antar versi	P1
+FR-31	Live Preview	Sebelum commit, user dapat melihat preview visual patch	P1
+FR-32	Manual Edit	User dapat drag/resize chart dan edit properti di UI; perubahan ini juga jadi patch	P1
+FR-33	Conflict Detection	Sistem mendeteksi dan menolak patch yang konflik dengan versi terkini	P1
+FR-34	Undo/Redo	User dapat undo/redo patch dalam session	P2
+FR-35	Patch History	UI menampilkan timeline semua patch yang pernah diterapkan	P2
+FR-36	Idempotency	Apply patch yang sama dua kali → hasil sama	P0
+FR-37	Rollback Metabase	Rollback state → Metabase ikut di-rollback (hapus/restore cards)	P0
+FR-38	Manual Override	User dapat edit patch yang diusulkan LLM sebelum apply	P2
+7. Kebutuhan Non-Fungsional (Tambahan)
+7.8 Performa, Keandalan, dan Konsistensi (F-13)
+NFR-18: Latensi Patch Apply
+Jenis Patch	Target Latensi	Catatan
+Patch tanpa Metabase call (misal: preview saja)	< 500 ms	Hanya state manipulation
+Patch dengan 1 Metabase API call	< 2 detik	CREATE/UPDATE card
+Patch dengan banyak Metabase call (reorder semua)	< 5 detik	Batch + parallel
+Rollback (reverse patch)	< 5 detik	Multiple API calls
+Alasan:
+
+User iteratif — kalau tiap perubahan 10+ detik, iterasi jadi menyiksa.
+
+Preview harus < 500 ms karena ini murni JSON manipulation.
+
+Sync ke Metabase memakan waktu karena HTTP round-trip.
+
+Optimasi:
+
+Optimasi	Deskripsi
+Batch Metabase API	Gabungkan beberapa update jadi satu PUT /api/dashboard/:id
+Parallel API calls	Untuk update independent (2 card berbeda), jalankan paralel
+Optimistic UI	Frontend update dulu, backend async sync
+Debounce manual edit	Drag/resize user di-debounce 500 ms sebelum kirim patch
+NFR-19: Konsistensi State (State Consistency)
+Parameter	Deskripsi
+Atomic Apply	Patch apply dalam transaction — kalau gagal, rollback ke state sebelumnya
+Optimistic Lock	Setiap patch menyertakan base_version. Jika versi sudah berubah, patch ditolak dengan konflik.
+Idempotency	Apply patch yang sama 2x → hasil identik (pakai patch hash)
+Reconciliation	Jika Metabase state berbeda dari state store, sistem bisa reconcile (sync ulang)
+Alasan:
+
+Multi-tab user bisa membuka dashboard yang sama → rawan konflik.
+
+Metabase bisa gagal di tengah apply → harus atomic.
+
+Reconciliation memastikan state store & Metabase selalu sinkron.
+
+NFR-20: Preservasi Non-Targeted Fields
+Parameter	Deskripsi
+Preserve by Default	Field yang tidak disebut patch tidak boleh berubah
+Whitelist Update	Patch hanya bisa update field di whitelist (misal: ADD_CARD hanya tambah card, tidak ubah card lain)
+Diff Verification	Setelah apply, sistem bisa verifikasi: field non-targeted sama dengan sebelumnya
+Alasan:
+
+Ini inti dari F-13. Kalau kita salah preserve, user frustrasi.
+
+Whitelist mencegah patch "bocor" mengubah sesuatu yang tidak diminta.
+
+NFR-21: Reliability Rollback
+Parameter	Deskripsi
+Rollback Accuracy	Rollback ke versi N harus menghasilkan state yang identik dengan versi N
+Metabase Reconciliation	Setelah rollback, Metabase harus sinkron (hapus/tambah card)
+Rollback Time	< 10 detik untuk dashboard dengan 20 card
+Rollback Audit	Rollback dicatat sebagai patch baru (ROLLBACK_TO_VERSION)
+Alasan:
+
+Rollback adalah "escape hatch" — harus benar-benar reliable.
+
+User butuh kepercayaan bahwa rollback tidak akan merusak state.
+
+NFR-22: Token Efficiency (Patch Mode)
+Parameter	Deskripsi
+Context Size	Context yang dikirim ke LLM = state ringkas (ringkasan, bukan full JSON)
+Token Reduction	Target: 5x lebih hemat dibanding generate-from-scratch
+Patch Output	Output LLM = patch JSON kecil (bukan full dashboard)
+Cache	Cache patch per (instruction + state hash)
+Alasan:
+
+Generate ulang = kirim schema + state lengkap → mahal.
+
+Patch mode = kirim hanya ringkasan state + instruksi → murah.
+
+Caching patch = iterasi identik di workspace lain gratis.
+
+NFR-23: Concurrency Safety
+Parameter	Deskripsi
+Optimistic Lock	Setiap patch menyertakan base_version. Jika tidak cocok, tolak.
+Lock on Apply	Selama apply, dashboard di-lock (mutex di Redis)
+Timeout Lock	Lock timeout 30 detik (untuk handle crash)
+Conflict Resolution	User bisa "force apply" dengan merge, atau rollback dulu
+Alasan:
+
+Multi-user workspace bisa edit bersamaan.
+
+Concurrent edits tanpa lock = data corrupt.
+
+NFR-24: Auditability Patch
+Parameter	Deskripsi
+Patch Log	Semua patch dicatat: user, timestamp, patch content, result
+Diff History	Bisa lihat diff antar versi kapan saja
+Undo Trail	Bisa lihat siapa mengubah apa kapan
+Retention	Minimal 90 hari
+Alasan:
+
+Corporate butuh audit trail.
+
+Debugging issue dashboard butuh history.
+
+NFR-25: Preview Isolation
+Parameter	Deskripsi
+Preview = Sandbox	Preview tidak mengubah Metabase asli
+Preview Storage	Preview disimpan di Redis (TTL 10 menit)
+Preview Cleanup	Setelah commit atau timeout, preview dihapus
+Preview Renders	Preview pakai Metabase embed dengan ?preview=1 (state lokal)
+Alasan:
+
+Preview harus aman — kalau user reject, tidak ada yang berubah.
+
+Preview jangan kontaminasi state asli.
+
+📊 Ringkasan NFR Tambahan (F-13)
+ID	NFR	Target
+NFR-18	Latensi Patch Apply	< 500 ms (state) / < 2 detik (1 API)
+NFR-19	Konsistensi State	Atomic, optimistic lock, idempotent
+NFR-20	Preservasi Non-Targeted	100% preserve field yang tidak disebut
+NFR-21	Reliability Rollback	Akurat, sinkron Metabase, < 10 detik
+NFR-22	Token Efficiency	5x lebih hemat dari generate-from-scratch
+NFR-23	Concurrency Safety	Optimistic lock + Redis mutex
+NFR-24	Auditability Patch	Log semua patch, retensi 90 hari
+NFR-25	Preview Isolation	Sandbox di Redis, tidak kontaminasi state
+8. Manajemen State atau Alur Logika (Tambahan)
+8.8 Dashboard State Model (F-13)
+Dashboard direpresentasikan sebagai JSON state tree:
+
+json
+{
+  "dashboard_id": "uuid-v4",
+  "workspace_id": "uuid-v4",
+  "metabase_dashboard_id": 123,
+  "version": 5,
+  "parent_version": 4,
+  "created_at": "2026-01-15T10:00:00Z",
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Overview",
+      "layout_columns": 24,
+      "cards": [
+        {
+          "id": "card-kpi-fraud",
+          "title": "Total Fraud",
+          "type": "scalar",
+          "sql": "SELECT COUNT(*) FROM fraud_labels WHERE fraud_label = 'Yes'",
+          "position": { "row": 0, "col": 0, "size_x": 6, "size_y": 3 },
+          "style": {
+            "color": "#3b82f6",
+            "show_legend": false,
+            "number_format": "comma"
+          },
+          "metabase": {
+            "card_id": 45,
+            "dashcard_id": 78
+          },
+          "filters_applied": ["filter-card-brand", "filter-state"]
+        }
+      ],
+      "filters": [
+        {
+          "id": "filter-card-brand",
+          "name": "Card Brand",
+          "type": "category",
+          "column": "cards.card_brand",
+          "default": null,
+          "metabase_parameter_id": "abc123"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "generated_by": "Dashboard Builder Agent",
+    "generated_at": "2026-01-15T09:55:00Z",
+    "llm_tokens_used": 1250
+  }
+}
+Field penting:
+
+Field	Deskripsi
+version	Nomor versi saat ini (increment per patch)
+parent_version	Versi sebelumnya (untuk rollback)
+pages[].cards[]	List chart per halaman
+cards[].id	ID internal (stabil, dipakai referensi di patch)
+cards[].metabase.card_id	ID card di Metabase (untuk API call)
+cards[].metabase.dashcard_id	ID dashcard di Metabase
+cards[].position	Posisi grid (row, col, size_x, size_y)
+cards[].style	Warna, legend, format
+pages[].filters	Filter global per halaman
+8.9 Patch Model (F-13)
+Semua patch adalah discriminated union dengan patch_type:
+
+python
+class PatchType(str, Enum):
+    ADD_CARD = "ADD_CARD"
+    REMOVE_CARD = "REMOVE_CARD"
+    MOVE_CARD = "MOVE_CARD"
+    RESIZE_CARD = "RESIZE_CARD"
+    CHANGE_COLOR = "CHANGE_COLOR"
+    CHANGE_TITLE = "CHANGE_TITLE"
+    CHANGE_CHART_TYPE = "CHANGE_CHART_TYPE"
+    UPDATE_SQL = "UPDATE_SQL"
+    ADD_FILTER = "ADD_FILTER"
+    REMOVE_FILTER = "REMOVE_FILTER"
+    ROLLBACK_TO_VERSION = "ROLLBACK_TO_VERSION"
+    COMPOSITE = "COMPOSITE"  # multiple patches sekaligus
+Detail per Patch Type
+Patch Type	Field	Contoh NL	Efek
+ADD_CARD	page_id, card (full), insert_before (opsional), insert_after (opsional)	"Tambahkan chart di atas X"	Card baru ditambahkan
+REMOVE_CARD	card_id	"Hapus chart X"	Card dihapus
+MOVE_CARD	card_id, new_position	"Pindahkan X ke kanan"	Posisi berubah
+SWAP_CARDS	card_id_a, card_id_b	"Tukar X dan Y"	2 card tukar posisi
+RESIZE_CARD	card_id, new_size	"Perbesar X"	Ukuran berubah
+CHANGE_COLOR	card_id, color	"Ubah warna X jadi merah"	Warna berubah
+CHANGE_TITLE	card_id, new_title	"Ganti judul X jadi 'Penjualan'"	Judul berubah
+CHANGE_CHART_TYPE	card_id, new_type	"Ubah X jadi line chart"	Tipe chart berubah
+UPDATE_SQL	card_id, new_sql	"Ubah query X agar filter juga fraud"	SQL berubah
+ADD_FILTER	page_id, filter, apply_to (list card_id atau "all")	"Tambahkan filter card_brand"	Filter ditambahkan
+REMOVE_FILTER	filter_id	"Hapus filter X"	Filter dihapus
+ROLLBACK_TO_VERSION	target_version	"Kembalikan ke versi 4"	Rollback
+COMPOSITE	patches: List[Patch]	"Tambah chart A dan ubah warna B"	Multiple patches
+Contoh Patch JSON
+ADD_CARD:
+
+json
+{
+  "patch_type": "ADD_CARD",
+  "page_id": "page-1",
+  "insert_before": "card-top10states",
+  "card": {
+    "id": "card-fraud-by-brand",
+    "title": "Fraud by Card Brand",
+    "type": "bar",
+    "sql": "SELECT c.card_brand, COUNT(*) as total FROM transactions t JOIN cards c ON t.card_id = c.id JOIN fraud_labels f ON t.id = f.id WHERE f.fraud_label = 'Yes' GROUP BY c.card_brand ORDER BY total DESC",
+    "position": { "row": 0, "col": 0, "size_x": 12, "size_y": 4 },
+    "style": { "color": "#3b82f6" }
+  }
+}
+SWAP_CARDS:
+
+json
+{
+  "patch_type": "SWAP_CARDS",
+  "card_id_a": "card-monthly-trend",
+  "card_id_b": "card-fraud-by-brand"
+}
+CHANGE_COLOR:
+
+json
+{
+  "patch_type": "CHANGE_COLOR",
+  "card_id": "card-monthly-trend",
+  "color": "#ef4444"
+}
+COMPOSITE:
+
+json
+{
+  "patch_type": "COMPOSITE",
+  "patches": [
+    { "patch_type": "ADD_CARD", ... },
+    { "patch_type": "CHANGE_COLOR", ... }
+  ]
+}
+8.10 Intent Parser Agent (F-13)
+Tugas: Menerima instruksi NL user + ringkasan state saat ini → output patch JSON.
+
+Prompt Template:
+
+text
+You are a dashboard editing assistant.
+
+CURRENT DASHBOARD STATE (summary):
+- Page 1 "Overview" has 3 cards:
+  * card-kpi-fraud: "Total Fraud" (scalar, position row=0 col=0)
+  * card-monthly-trend: "Monthly Trend" (line, position row=3 col=0, color=#3b82f6)
+  * card-top10states: "Top 10 States" (bar, position row=3 col=12, color=#10b981)
+- Filters: none
+
+USER INSTRUCTION:
+"Tambahkan chart bar di atas 'Top 10 States' dengan judul 'Fraud by Card Brand', warna biru."
+
+TASK:
+Generate a SINGLE patch JSON that:
+1. Only modifies what user explicitly asked.
+2. Preserves everything else.
+3. Uses valid card_id references.
+4. Follows the patch schema.
+
+OUTPUT (JSON only):
+{
+  "patch_type": "...",
+  ...
+}
+Aturan Penting untuk LLM:
+
+Preserve-first — jangan ubah yang tidak diminta.
+
+Stable ID reference — gunakan card_id yang ada di state.
+
+Valid patch_type — harus salah satu dari 13 tipe.
+
+SQL harus SELECT-only — validasi keamanan.
+
+Position conflict — saat menambahkan, geser card lain jika perlu (auto-shift).
+
+JSON mode — output harus JSON, bukan teks.
+
+8.11 Patch Validator (F-13)
+Tugas: Validasi patch sebelum apply.
+
+Aturan Validasi:
+
+Aturan	Deskripsi	Contoh Pelanggaran
+Referential Integrity	Semua card_id, page_id, filter_id harus ada di state	Patch MOVE_CARD dengan card_id yang tidak ada
+Uniqueness	Title card harus unik dalam 1 page	ADD_CARD dengan title yang sudah dipakai
+SQL Safety	SQL harus SELECT-only	UPDATE_SQL dengan DROP TABLE
+Position Validity	Posisi tidak overlap (kecuali auto-shift)	MOVE_CARD ke posisi yang bentrok
+Size Validity	Size dalam batas (min 2x2, max 24 kolom)	RESIZE_CARD size_x = 30
+Color Format	Hex color valid	CHANGE_COLOR warna "biru" (bukan hex)
+Filter Reference	ADD_FILTER column harus ada di schema	ADD_FILTER "card_brand" padahal kolom tidak ada
+Version Match	base_version harus = state version saat ini	Patch dari versi lama
+No Recursive Composite	Composite tidak boleh berisi composite	Nested COMPOSITE
+Output: Valid atau Invalid(reason).
+
+8.12 Patch Applier (F-13)
+Tugas: Apply patch ke state → hasil state baru.
+
+Alur:
+
+text
+1. Load state saat ini (state_old)
+2. Deep copy ke state_new
+3. Berdasarkan patch_type:
+   a. ADD_CARD:
+      - Insert card ke page
+      - Auto-shift card lain jika perlu (grid layout)
+      - Generate metabase API call: POST /api/card, POST /api/dashboard/:id/cards
+   b. REMOVE_CARD:
+      - Hapus card dari page
+      - Auto-merge space (grid reflow)
+      - Generate: DELETE /api/dashboard/:id/cards/:dashcard_id
+   c. SWAP_CARDS:
+      - Tukar posisi 2 card
+      - Generate: PUT /api/dashboard/:id/cards (batch update)
+   d. dst.
+4. Verifikasi: field non-targeted sama? (diff check)
+5. Simpan state_new sebagai versi baru
+6. Return state_new + API calls to execute
+8.13 Metabase Adapter (F-13)
+Tugas: Translate patch ke Metabase API call.
+
+Mapping Patch → Metabase API:
+
+Patch Type	Metabase API Call
+ADD_CARD	POST /api/card (buat card) + POST /api/dashboard/:id/cards (attach)
+REMOVE_CARD	DELETE /api/dashboard/:id/cards/:dashcard_id + DELETE /api/card/:id (opsional)
+MOVE_CARD	PUT /api/dashboard/:id/cards (batch update semua posisi)
+SWAP_CARDS	PUT /api/dashboard/:id/cards (batch update 2 card)
+RESIZE_CARD	PUT /api/dashboard/:id/cards (update size)
+CHANGE_COLOR	PUT /api/card/:id (update visualization_settings)
+CHANGE_TITLE	PUT /api/card/:id (update name)
+CHANGE_CHART_TYPE	PUT /api/card/:id (update display)
+UPDATE_SQL	PUT /api/card/:id (update dataset_query)
+ADD_FILTER	POST /api/dashboard/:id (update parameters) + PUT /api/dashboard/:id/cards (bind parameters to cards)
+REMOVE_FILTER	PUT /api/dashboard/:id (remove parameter)
+ROLLBACK_TO_VERSION	Multiple calls (hapus/restore cards)
+Batch Optimization:
+
+Untuk patch yang menyentuh banyak card (misal: auto-shift setelah ADD_CARD), batch dalam 1 request:
+
+http
+PUT /api/dashboard/123/cards
+Content-Type: application/json
+
+{
+  "cards": [
+    { "id": 78, "row": 0, "col": 0, "size_x": 6, "size_y": 4 },
+    { "id": 79, "row": 0, "col": 6, "size_x": 6, "size_y": 4 },
+    { "id": 80, "row": 4, "col": 0, "size_x": 12, "size_y": 4 }
+  ]
+}
+8.14 Version Control (F-13)
+Tabel DB:
+
+sql
+CREATE TABLE dashboard_versions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dashboard_id    UUID NOT NULL,
+    workspace_id    UUID NOT NULL,
+    version         INTEGER NOT NULL,
+    parent_version  INTEGER,
+    state_json      JSONB NOT NULL,
+    patch_applied   JSONB,
+    created_by      UUID,
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (dashboard_id, version)
+);
+
+CREATE TABLE dashboard_patches (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dashboard_id    UUID NOT NULL,
+    from_version    INTEGER NOT NULL,
+    to_version      INTEGER NOT NULL,
+    patch_json      JSONB NOT NULL,
+    patch_hash      TEXT NOT NULL,
+    status          TEXT,  -- applied / rejected / failed
+    error_message   TEXT,
+    created_by      UUID,
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_versions_dashboard ON dashboard_versions(dashboard_id, version DESC);
+CREATE INDEX idx_patches_dashboard ON dashboard_patches(dashboard_id, created_at DESC);
+Rollback Flow:
+
+text
+1. User minta rollback ke versi N.
+2. Load state versi N.
+3. Bandingkan dengan state saat ini → generate diff.
+4. Diff → generate reverse patches.
+5. Apply reverse patches → state = state versi N.
+6. Sync ke Metabase.
+7. Simpan sebagai versi baru (version = N+1, parent = current).
+8. Log di dashboard_patches (patch_type = ROLLBACK_TO_VERSION).
+8.15 Live Preview (F-13)
+Konsep:
+
+Sebelum commit patch, generate state draft dan simpan di Redis dengan TTL 10 menit.
+
+Frontend render preview via Metabase embed (state draft di-embed sebagai query param).
+
+User lihat before/after side-by-side atau toggle.
+
+Tombol: Accept (apply patch) · Reject (buang draft) · Edit Manual (buka manual editor).
+
+Preview Key: ws:{id}:dashboard:{dashboard_id}:preview:{preview_id}
+
+8.16 Conflict Detection (F-13)
+Optimistic Locking:
+
+Setiap patch yang dikirim dari frontend wajib menyertakan base_version:
+
+json
+{
+  "patch": { ... },
+  "base_version": 5
+}
+Backend:
+
+python
+current_version = load_current_version(dashboard_id)
+if base_version != current_version:
+    raise ConflictError(
+        f"Dashboard sudah diupdate ke versi {current_version}. "
+        f"Patch Anda untuk versi {base_version}. Silakan refresh."
+    )
+Resolution Options:
+
+Refresh & Retry — user load versi terbaru, ulangi patch.
+
+Force Apply — user paksa apply dengan merge (risiko konflik).
+
+Rollback First — user rollback dulu ke versi base_version, lalu apply.
+
+8.17 Manual Edit Mode (F-13)
+UI:
+
+Canvas drag/resize (react-grid-layout)
+
+Property panel (warna, judul, tipe chart)
+
+Tombol Add/Remove card
+
+Flow:
+
+User drag card → frontend calculate new position.
+
+Frontend generate patch MOVE_CARD → kirim ke backend (debounce 500 ms).
+
+Backend validasi & apply → Metabase sync.
+
+Frontend update state.
+
+Semua manual edit = patch → konsisten dengan conversational edit.
+
+8.18 Undo/Redo Stack (F-13)
+Redis key: ws:{id}:dashboard:{dashboard_id}:session:{session_id}:undo_stack
+
+Stack berisi: List of patch + state hash.
+
+Undo:
+
+Pop patch terakhir dari undo_stack.
+
+Generate reverse patch.
+
+Push ke redo_stack.
+
+Apply reverse patch.
+
+Redo:
+
+Pop patch dari redo_stack.
+
+Apply patch.
+
+Push kembali ke undo_stack.
+
+8.19 Cost & Token Optimization (F-13)
+Comparison:
+
+Mode	Context Size	Output Size	Total Token
+Generate-from-scratch (v1)	Schema (~2000) + state (~3000)	Full dashboard (~4000)	~9000
+Patch-based (F-13)	Schema (~2000) + state summary (~500) + instruction (~50)	Patch (~300)	~2850
+Hemat: ~3.2x.
+
+Dengan caching patch hash → hemat sampai 10x untuk iterasi identik.
+
+9. Instruksi Eksekusi dan Pengujian (Tambahan)
+9.5 Struktur Folder Test (Tambahan F-13)
+text
+test/
+├── test_dashboard_state.py         # NEW: State model
+├── test_patch_model.py             # NEW: Patch Pydantic model
+├── test_intent_parser.py           # NEW: NL → patch
+├── test_patch_validator.py         # NEW: Validasi patch
+├── test_patch_applier.py           # NEW: Apply patch
+├── test_metabase_adapter.py        # NEW: Patch → Metabase API
+├── test_version_control.py         # NEW: Rollback & diff
+├── test_conflict_detection.py      # NEW: Optimistic lock
+├── test_preservation.py            # NEW: Non-targeted field preserved
+├── test_dashboard_editor_e2e.py    # NEW: Full iterasi
+└── test_idempotency.py             # NEW: Patch 2x = sama
+9.6 Daftar Test (F-13)
+File Test	Yang Diuji	Skenario Utama
+test_dashboard_state.py	State model	Load, save, update state
+test_patch_model.py	Patch schema	Validasi tipe patch & field
+test_intent_parser.py	NL → patch	"Tambah chart X" → ADD_CARD patch
+test_patch_validator.py	Validasi	Referential integrity, SQL safety
+test_patch_applier.py	Apply	ADD_CARD → state bertambah
+test_metabase_adapter.py	API mapping	Patch → API call benar
+test_version_control.py	Rollback	Rollback ke v4 → state = v4
+test_conflict_detection.py	Optimistic lock	Patch versi lama → ditolak
+test_preservation.py	Preserve non-targeted	ADD_CARD tidak ubah warna card lain
+test_dashboard_editor_e2e.py	Full iterasi	7 iterasi berturut-turut
+test_idempotency.py	Idempotency	Apply patch 2x → sama
+9.7 Pengujian Manual (F-13)
+Generate awal → "Buat dashboard fraud dengan 3 chart."
+
+ADD_CARD → "Tambahkan chart bar di atas 'Top 10 States'."
+
+SWAP_CARDS → "Tukar 'Monthly Trend' dengan 'Fraud by Card Brand'."
+
+CHANGE_COLOR → "Ubah warna 'Monthly Trend' jadi merah."
+
+ADD_FILTER → "Tambahkan filter card_brand."
+
+RESIZE_CARD → "Perbesar 'Top 10 States'."
+
+REMOVE_CARD → "Hapus 'Fraud by Card Brand'."
+
+Rollback → "Kembalikan ke versi 3."
+
+Undo → Tekan Ctrl+Z → patch terakhir di-undo.
+
+Conflict → Buka 2 tab, edit di tab A, edit di tab B → tab B dapat pesan konflik.
+
+Manual Edit → Drag chart di UI → otomatis patch.
+
+Preview → Setiap patch tampil preview dulu → Accept/Reject.
+
+📌 LANGKAH IMPLEMENTASI v2 — Tambahan (F-13)
+Tandai [ ] → [x] saat selesai.
+
+TAHAP 11: DASHBOARD STATE MODEL
+Tujuan: Membangun fondasi state-based dashboard.
+
+Langkah 11.1 — Definisi DashboardState Pydantic Model
+
+□ Buat app/dashboard/state_model.py:
+□ DashboardState (pages, cards, filters, version)
+□ Page, Card, Filter (nested)
+□ Position, Style (value objects)
+□ JSON schema export untuk LLM prompt
+□ File yang dibuat: dashboard/state_model.py
+Langkah 11.2 — Definisi Patch Pydantic Model (Discriminated Union)
+
+□ Buat app/dashboard/patch_model.py:
+□ Base Patch dengan patch_type
+□ 13 tipe patch: ADD_CARD, REMOVE_CARD, MOVE_CARD, SWAP_CARDS, RESIZE_CARD, CHANGE_COLOR, CHANGE_TITLE, CHANGE_CHART_TYPE, UPDATE_SQL, ADD_FILTER, REMOVE_FILTER, ROLLBACK_TO_VERSION, COMPOSITE
+□ CompositePatch dengan list patch
+□ JSON schema export untuk LLM prompt
+□ File yang dibuat: dashboard/patch_model.py
+Langkah 11.3 — Migrasi Database Dashboard Versions
+
+□ Buat scripts/migrations/003_dashboard_versions.sql:
+□ Tabel dashboard_versions
+□ Tabel dashboard_patches
+□ Index pada dashboard_id, version, created_at
+□ RLS policy per workspace
+□ File yang dibuat: scripts/migrations/003_dashboard_versions.sql
+Langkah 11.4 — State Store Service
+
+□ Buat app/dashboard/state_store.py:
+□ save_version(dashboard_id, state, patch, user_id) -> version
+□ load_version(dashboard_id, version) -> DashboardState
+□ load_latest(dashboard_id) -> DashboardState
+□ list_versions(dashboard_id) -> List[VersionSummary]
+□ get_patches(dashboard_id) -> List[PatchLog]
+□ File yang dibuat: dashboard/state_store.py
+TAHAP 12: INTENT PARSER AGENT
+Tujuan: Menerjemahkan NL → patch.
+
+Langkah 12.1 — Prompt Template Intent Parser
+
+□ Buat app/dashboard/prompts/intent_parser.md:
+□ Instruksi preserve-first
+□ Contoh 13 tipe patch
+□ Schema patch dalam JSON
+□ Aturan: SELECT-only, stable ID, dst.
+□ File yang dibuat: dashboard/prompts/intent_parser.md
+Langkah 12.2 — Intent Parser Agent
+
+□ Buat app/dashboard/intent_parser.py:
+□ parse_instruction(instruction, state_summary) -> Patch
+□ Panggil Groq LLM (API key workspace) dengan JSON mode
+□ Parse output → Pydantic Patch
+□ Error handling: jika LLM output tidak valid, retry 1x, else fallback
+□ Cache patch per (instruction_hash + state_hash) di Redis
+□ File yang dibuat: dashboard/intent_parser.py
+Langkah 12.3 — State Summarizer
+
+□ Buat app/dashboard/state_summarizer.py:
+□ summarize_state(state) -> str (untuk prompt LLM)
+□ Ringkas: nama page, daftar card (id, title, type, position), filters
+□ Token-optimized (~500 token untuk dashboard 20 card)
+□ File yang dibuat: dashboard/state_summarizer.py
+TAHAP 13: PATCH VALIDATOR & APPLIER
+Tujuan: Validasi & apply patch ke state.
+
+Langkah 13.1 — Patch Validator
+
+□ Buat app/dashboard/patch_validator.py:
+□ validate(patch, current_state) -> ValidationResult
+□ Referential integrity (card_id, page_id, filter_id)
+□ Uniqueness (title)
+□ SQL safety (SELECT-only)
+□ Position validity (grid)
+□ Size validity
+□ Color format (hex)
+□ Version match
+□ No recursive composite
+□ File yang dibuat: dashboard/patch_validator.py
+Langkah 13.2 — Patch Applier
+
+□ Buat app/dashboard/patch_applier.py:
+□ apply(state, patch) -> (new_state, metabase_calls)
+□ Deep copy state → apply patch
+□ Auto-shift grid untuk ADD_CARD
+□ Reflow untuk REMOVE_CARD
+□ Return list Metabase API calls yang harus dieksekusi
+□ Verifikasi non-targeted fields preserved
+□ File yang dibuat: dashboard/patch_applier.py
+Langkah 13.3 — Grid Layout Engine
+
+□ Buat app/dashboard/grid.py:
+□ auto_shift(cards, new_card) -> List[Position]
+□ reflow(cards) -> List[Position]
+□ check_overlap(pos_a, pos_b) -> bool
+□ find_free_position(cards, size) -> Position
+□ File yang dibuat: dashboard/grid.py
+Langkah 13.4 — Preservation Checker
+
+□ Buat app/dashboard/preservation.py:
+□ verify_preservation(old_state, new_state, patch) -> bool
+□ Field yang tidak disebut patch → harus sama
+□ File yang dibuat: dashboard/preservation.py
+TAHAP 14: METABASE ADAPTER
+Tujuan: Translate patch ke Metabase API call.
+
+Langkah 14.1 — Metabase Client Extension
+
+□ Update app/services/metabase.py:
+□ create_card(card_config) -> card_id
+□ update_card(card_id, updates)
+□ delete_card(card_id)
+□ add_card_to_dashboard(dashboard_id, card_id, position) -> dashcard_id
+□ update_dashcards(dashboard_id, updates: List)
+□ delete_dashcard(dashboard_id, dashcard_id)
+□ update_dashboard(dashboard_id, updates)
+□ File yang dibuat: update services/metabase.py
+Langkah 14.2 — Patch → Metabase Adapter
+
+□ Buat app/dashboard/metabase_adapter.py:
+□ patch_to_api_calls(patch, state) -> List[MetabaseCall]
+□ Mapping per patch type
+□ Batch optimization untuk reorder
+□ Retry & error handling
+□ File yang dibuat: dashboard/metabase_adapter.py
+Langkah 14.3 — Sync Verification
+
+□ Buat app/dashboard/sync_verifier.py:
+□ verify_sync(dashboard_id, state) -> bool
+□ Bandingkan state store vs Metabase
+□ Reconciliation: perbaiki perbedaan
+□ File yang dibuat: dashboard/sync_verifier.py
+TAHAP 15: VERSION CONTROL & CONFLICT
+Tujuan: Rollback, diff, conflict detection.
+
+Langkah 15.1 — Version Control Service
+
+□ Buat app/dashboard/version_control.py:
+□ rollback(dashboard_id, target_version, user_id) -> new_state
+□ diff(version_a, version_b) -> Diff
+□ reverse_patch(diff) -> Patch
+□ Log ke dashboard_patches
+□ File yang dibuat: dashboard/version_control.py
+Langkah 15.2 — Conflict Detector
+
+□ Buat app/dashboard/conflict_detector.py:
+□ check_conflict(dashboard_id, base_version) -> bool
+□ Raise ConflictError jika versi tidak cocok
+□ File yang dibuat: dashboard/conflict_detector.py
+Langkah 15.3 — Lock Manager
+
+□ Buat app/dashboard/lock.py:
+□ Redis mutex per dashboard (TTL 30 detik)
+□ Context manager with lock(dashboard_id):
+□ File yang dibuat: dashboard/lock.py
+Langkah 15.4 — Undo/Redo Service
+
+□ Buat app/dashboard/undo_redo.py:
+□ Stack di Redis per session
+□ push_undo(session_id, patch)
+□ undo(session_id) -> Patch
+□ redo(session_id) -> Patch
+□ File yang dibuat: dashboard/undo_redo.py
+TAHAP 16: API ROUTES v2 (F-13)
+Tujuan: Endpoint untuk dashboard editing.
+
+Langkah 16.1 — Dashboard State Routes
+
+□ GET /api/dashboards/{id}/state — state terkini
+□ GET /api/dashboards/{id}/versions — list versi
+□ GET /api/dashboards/{id}/versions/{v} — state versi V
+□ GET /api/dashboards/{id}/patches — log patch
+□ File yang dibuat: api/routes/dashboard_state.py
+Langkah 16.2 — Patch Routes
+
+□ POST /api/dashboards/{id}/patch/parse — NL → patch (untuk preview)
+□ POST /api/dashboards/{id}/patch/preview — preview patch
+□ POST /api/dashboards/{id}/patch/apply — apply patch
+□ POST /api/dashboards/{id}/patch/reject — reject preview
+□ File yang dibuat: api/routes/dashboard_patch.py
+Langkah 16.3 — Version Routes
+
+□ POST /api/dashboards/{id}/rollback — rollback ke versi
+□ GET /api/dashboards/{id}/diff?v1=3&v2=5 — diff antar versi
+□ File yang dibuat: api/routes/dashboard_version.py
+Langkah 16.4 — Undo/Redo Routes
+
+□ POST /api/dashboards/{id}/undo
+□ POST /api/dashboards/{id}/redo
+□ File yang dibuat: api/routes/dashboard_undo.py
+Langkah 16.5 — Manual Edit Routes
+
+□ POST /api/dashboards/{id}/manual-edit — patch dari drag/resize UI
+□ File yang dibuat: api/routes/dashboard_manual.py
+TAHAP 17: FRONTEND v2 (F-13)
+Tujuan: UI dashboard editor.
+
+Langkah 17.1 — Dashboard Editor Layout
+
+□ Buat pages/DashboardEditorPage.jsx:
+□ Split view: chat (kiri) + preview (kanan)
+□ Panel patch history (bawah atau sidebar)
+□ Property panel (kanan)
+□ File yang dibuat: pages/DashboardEditorPage.jsx
+Langkah 17.2 — Chat Panel untuk Editing
+
+□ Buat components/dashboard-editor/ChatPanel.jsx:
+□ Input instruksi NL
+□ Tampilkan patch yang diusulkan (JSON viewer)
+□ Tombol Accept / Reject / Edit Manual
+□ File yang dibuat: components/dashboard-editor/ChatPanel.jsx
+Langkah 17.3 — Live Preview
+
+□ Buat components/dashboard-editor/LivePreview.jsx:
+□ Iframe Metabase (preview mode)
+□ Toggle before/after
+□ Highlight area yang berubah
+□ File yang dibuat: components/dashboard-editor/LivePreview.jsx
+Langkah 17.4 — Diff Viewer
+
+□ Buat components/dashboard-editor/DiffViewer.jsx:
+□ Gunakan jsondiffpatch
+□ Tampilkan before/after state
+□ Highlight per-field
+□ File yang dibuat: components/dashboard-editor/DiffViewer.jsx
+Langkah 17.5 — Patch History Panel
+
+□ Buat components/dashboard-editor/PatchHistoryPanel.jsx:
+□ Timeline patch
+□ Tombol rollback per versi
+□ Filter by user, tanggal
+□ File yang dibuat: components/dashboard-editor/PatchHistoryPanel.jsx
+Langkah 17.6 — Manual Edit Canvas
+
+□ Buat components/dashboard-editor/ManualEditCanvas.jsx:
+□ react-grid-layout
+□ Drag/resize card
+□ Auto-generate patch saat drag selesai (debounce 500 ms)
+□ File yang dibuat: components/dashboard-editor/ManualEditCanvas.jsx
+Langkah 17.7 — Property Panel
+
+□ Buat components/dashboard-editor/PropertyPanel.jsx:
+□ Edit warna, judul, tipe chart
+□ Setiap perubahan → generate patch
+□ File yang dibuat: components/dashboard-editor/PropertyPanel.jsx
+Langkah 17.8 — Undo/Redo Bar
+
+□ Buat components/dashboard-editor/UndoRedoBar.jsx:
+□ Tombol Ctrl+Z / Ctrl+Y
+□ Keyboard shortcut handler
+□ File yang dibuat: components/dashboard-editor/UndoRedoBar.jsx
+Langkah 17.9 — Update Routing
+
+□ Tambah route /dashboard/:id/edit
+□ File yang dibuat: update App.jsx
+TAHAP 18: INTEGRASI & TESTING (F-13)
+Tujuan: End-to-end verification.
+
+Langkah 18.1 — Integrasi Chat → Patch
+
+□ Planner Agent dikenali intent edit_dashboard
+□ Chat route deteksi apakah intent = create atau edit
+□ Jika edit → load state → Intent Parser → patch → apply → sync
+□ File yang dibuat: update api/routes/chat.py, update agents/planner.py
+Langkah 18.2 — Tulis Unit Test F-13
+
+□ test_dashboard_state.py
+□ test_patch_model.py
+□ test_intent_parser.py
+□ test_patch_validator.py
+□ test_patch_applier.py
+□ test_metabase_adapter.py
+□ test_version_control.py
+□ test_conflict_detection.py
+□ test_preservation.py
+□ test_idempotency.py
+□ File yang dibuat: 10 file test
+Langkah 18.3 — E2E Test F-13
+
+□ test_dashboard_editor_e2e.py:
+□ Iterasi 1: generate dashboard
+□ Iterasi 2: ADD_CARD
+□ Iterasi 3: SWAP_CARDS
+□ Iterasi 4: CHANGE_COLOR
+□ Iterasi 5: ADD_FILTER
+□ Iterasi 6: REMOVE_CARD
+□ Iterasi 7: rollback ke v3
+□ Verify state akhir = v3
+□ File yang dibuat: test/test_dashboard_editor_e2e.py
+Langkah 18.4 — Pengujian Manual F-13
+
+□ 12 skenario manual (lihat 9.7)
+□ Dokumentasi screenshot
+Langkah 18.5 — Optimasi Token
+
+□ Ukur token generate-from-scratch vs patch-based
+□ Target: 3x lebih hemat
+□ Tuning prompt jika perlu
+Langkah 18.6 — Dokumentasi F-13
+
+□ Update README dengan section "Iterative Dashboard Editing"
+□ Tambah contoh interaksi
+□ Sertakan screenshot before/after
+□ Update PRJ
+📊 PROGRESS SUMMARY v2 (Dengan F-13)
+Tahap	Deskripsi	Status
+Tahap 1	Persiapan dan Fondasi Multi-Tenant	⬜ Belum
+Tahap 2	Workspace Core & Encrypted Vault	⬜ Belum
+Tahap 3	Dynamic Data Source Connector	⬜ Belum
+Tahap 4	Dataset Upload & Schema Builder	⬜ Belum
+Tahap 5	RAG Self-Service (Knowledge Base)	⬜ Belum
+Tahap 6	API Routes v2	⬜ Belum
+Tahap 7	Frontend v2	⬜ Belum
+Tahap 8	Integrasi End-to-End	⬜ Belum
+Tahap 9	Testing	⬜ Belum
+Tahap 10	Finalisasi dan Dokumentasi	⬜ Belum
+Tahap 11	Dashboard State Model (F-13)	⬜ Belum
+Tahap 12	Intent Parser Agent (F-13)	⬜ Belum
+Tahap 13	Patch Validator & Applier (F-13)	⬜ Belum
+Tahap 14	Metabase Adapter (F-13)	⬜ Belum
+Tahap 15	Version Control & Conflict (F-13)	⬜ Belum
+Tahap 16	API Routes F-13	⬜ Belum
+Tahap 17	Frontend F-13	⬜ Belum
+Tahap 18	Integrasi & Testing F-13	⬜ Belum
+📌 Cara Menggunakan Addendum Ini
+Copy seluruh konten addendum ini.
+
+Letakkan di PRJ_BIthere_v2.md setelah Tahap 10 (bagian akhir dokumen).
+
+Nomor tahap dilanjutkan dari Tahap 10 → Tahap 11 s/d 18.
+
+Nomor FR dilanjutkan dari FR-20 → FR-21 s/d 38.
+
+Nomor NFR dilanjutkan dari NFR-17 → NFR-18 s/d 25.
+
+Update tabel Progress Summary di README utama agar mencakup F-13.
+
+🎯 Kesimpulan F-13
+Fitur Iterative Dashboard Editor mengubah cara user berinteraksi dengan dashboard:
+
+Sebelum (v1)	Sesudah (F-13)
+Generate ulang seluruh dashboard tiap iterasi	Patch hanya bagian yang diubah
+Chart lama bisa hilang saat regenerasi	Semua chart preserved
+Filter reset saat iterasi	Filter tetap, bisa ditambah
+Biaya token mahal	3–10x lebih hemat
+User kehilangan kontrol	User kontrol penuh
+Tidak ada versi	Version control + rollback
+Tidak ada preview	Live preview before/after
+Inilah yang membuat BIthere v2 benar-benar "user friendly" dan "corporate-ready" — bukan hanya bisa query, tapi bisa berkolaborasi iteratif dengan user seperti asisten manusia.
+
+"Ubah hanya yang ingin diubah. Sisanya biarkan apa adanya."
+
+Dokumen ini adalah Addendum F-13 dari PRJ_BIthere_v2.md. Letakkan sebagai bagian akhir dokumen atau sebagai file terpisah PRJ_BIthere_v2_Addendum_F13.md di folder root repository.
+
