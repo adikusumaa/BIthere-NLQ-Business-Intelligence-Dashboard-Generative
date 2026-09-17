@@ -28,9 +28,7 @@ async def send_slack(
             - channel (str)
             - error (str | None)
     """
-    # ------------------------------------------------------------------
-    # 1. Validasi config DULU
-    # ------------------------------------------------------------------
+    
     if not settings.SLACK_WEBHOOK_URL:
         log_error("send_slack: SLACK_WEBHOOK_URL not configured")
         return {
