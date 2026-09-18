@@ -1,17 +1,31 @@
-# Virtual Environment
-/venv/
-venv/
-
-# Environment Variables (secrets)
-.env
-/.env
-
-# Large Data Files (CSV) - JANGAN commit ke Git!
-data/*.csv
-data/*.json
-
-# Python cache
+# Python
 __pycache__/
 *.pyc
+*.pyo
+venv/
+.pytest_cache/
 
-frontend/node_modules/
+# Node
+node_modules/
+dist/
+.vite/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# BIthere v2
+uploads/
+duckdb/
+*.duckdb
+master.key
+*.log
+
+# Data besar
+data/*.csv
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
