@@ -1,0 +1,46 @@
+{
+  "patch_type": "ADD_CARD",
+  "page_id": "page-1",
+  "insert_before": "card-top10states",
+  "card": {
+    "id": "card-fraud-by-brand",
+    "title": "Fraud by Brand",
+    "type": "bar",
+    "sql": "SELECT c.card_brand, COUNT(*) AS total FROM transactions t JOIN cards c ON t.card_id = c.id JOIN fraud_labels f ON t.id = f.id WHERE f.fraud_label = 'Yes' GROUP BY c.card_brand ORDER BY total DESC",
+    "position": {"row": 0, "col": 0, "size_x": 12, "size_y": 4},
+    "style": {"color": "#3b82f6"}
+  }
+}
+
+{
+  "patch_type": "SWAP_CARDS",
+  "card_id_a": "card-monthly-trend",
+  "card_id_b": "card-fraud-by-brand"
+}
+
+{
+  "patch_type": "CHANGE_COLOR",
+  "card_id": "card-monthly-trend",
+  "color": "#ef4444"
+}
+
+{
+  "patch_type": "COMPOSITE",
+  "patches": [
+    {
+      "patch_type": "ADD_CARD",
+      "page_id": "page-1",
+      "card": {
+        "id": "card-q4-revenue",
+        "title": "Q4 Revenue",
+        "type": "bar",
+        "position": {"row": 8, "col": 0, "size_x": 12, "size_y": 4}
+      }
+    },
+    {
+      "patch_type": "CHANGE_COLOR",
+      "card_id": "card-monthly-trend",
+      "color": "#10b981"
+    }
+  ]
+}
