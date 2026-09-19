@@ -8,11 +8,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import (
     auth,
     chat,
+    chat_workspace,
     dashboard,
     data_sources,
+    datasets,
     integrations,
+    knowledge_base,
     report,
+    schema_builder,
     users,
+    wizard,
     workspaces,
 )
 from app.core.config import settings
@@ -37,6 +42,11 @@ app.include_router(auth.router)
 app.include_router(workspaces.router)
 app.include_router(integrations.router)
 app.include_router(data_sources.router)
+app.include_router(datasets.router)
+app.include_router(schema_builder.router)
+app.include_router(knowledge_base.router)
+app.include_router(wizard.router)
+app.include_router(chat_workspace.router)
 app.include_router(chat.router)
 app.include_router(dashboard.router)
 app.include_router(report.router)
