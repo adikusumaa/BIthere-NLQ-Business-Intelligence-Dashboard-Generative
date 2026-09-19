@@ -1,59 +1,71 @@
-import os
-from typing import AsyncGenerator
-from groq import AsyncGroq
-from tenacity import retry, stop_after_attempt, wait_exponential
+"""
+Groq LLM client.
+Supports per-workspace API key override; falls back to platform key.
+"""
+
+from typing import Optional
+
+from langchain_groq import ChatGroq
 
 from app.core.config import settings
 from app.core.logging import log_info, log_error
 
-_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
-MODEL_NAME = "openai/gpt-oss-120b"
-DEFAULT_TEMPERATURE = 0.2
-DEFAULT_MAX_TOKENS = 2048
+def _resolve_key(api_key: Optional[str]) -> str:
+    key = api_key or settings.GROQ_API_KEY
+    if not key:
+        raise ValueError("No Groq API key available (workspace or platform)")
+    return key
 
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    reraise=True,
-)
+def get_llm(
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+) -> ChatGroq:
+    """Return a ChatGroq client (workspace-scoped if api_key given)."""
+    return ChatGroq(
+        api_key=_resolve_key(api_key),
+        model=model or settings.LLM_MODEL,
+        temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
+        max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
+    )
+
 
 async def generate_chat(
-    messages: list[dict],
-    temperature: float = DEFAULT_TEMPERATURE,
-    max_tokens: int = DEFAULT_MAX_TOKENS,
+    messages: list,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
 ) -> str:
+    """
+    Send messages to Groq and return the assistant text.
+    """
+    llm = get_llm(
+        api_key=api_key,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
     try:
-        response = await _client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        return response.choices[0].message.content or ""
+        response = await llm.ainvoke(messages)
+        return response.content if hasattr(response, "content") else str(response)
     except Exception as exc:
-        log_error(f"Groq generate_chat failed: {exc}")
+        log_error(f"Groq chat failed: {exc}")
         raise
 
 
 async def stream_chat(
-    messages: list[dict],
-    temperature: float = DEFAULT_TEMPERATURE,
-    max_tokens: int = DEFAULT_MAX_TOKENS,
-) -> AsyncGenerator[str, None]:
-    try:
-        stream = await _client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=True,
-        )
-        async for chunk in stream:
-            token = chunk.choices[0].delta.content
-            if token:
-                yield token
-    except Exception as exc:
-        log_error(f"Groq stream_chat failed: {exc}")
-        raise
+    messages: list,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    max_tokens: Optional[int] = None,
+):
+    """Stream tokens from Groq."""
+    llm = get_llm(api_key=api_key, model=model, max_tokens=max_tokens)
+    async for chunk in llm.astream(messages):
+        text = chunk.content if hasattr(chunk, "content") else str(chunk)
+        if text:
+            yield text

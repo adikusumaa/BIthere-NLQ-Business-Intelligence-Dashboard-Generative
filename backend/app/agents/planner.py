@@ -59,15 +59,32 @@ def _fallback(reason: str) -> dict:
     }
 
 
-async def plan(user_prompt: str, session_state: dict | None = None) -> dict:
-    """Analyze user intent and return structured plan."""
+async def plan(user_prompt: str,session_state: dict | None = None,api_key: str | None = None,schema_hint: str | None = None,) -> dict:
+    """
+    Analyze user intent and return structured plan.
+
+    Args:
+        user_prompt: Natural language question.
+        session_state: Optional prior session data (unused for now).
+        api_key: Workspace Groq key. If None, falls back to platform.
+        schema_hint: Optional dynamic schema description to override the
+                     hardcoded fintech prompt (v2 multi-dataset support).
+    """
+    system_prompt = PLANNER_SYSTEM_PROMPT
+    if schema_hint:
+        system_prompt = (
+            PLANNER_SYSTEM_PROMPT
+            + "\n\nADDITIONAL DYNAMIC SCHEMA CONTEXT (from workspace):\n"
+            + schema_hint
+        )
+
     messages = [
-        {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
     try:
-        raw = await generate_chat(messages, temperature=0.0)
+        raw = await generate_chat(messages, temperature=0.0, api_key=api_key)
         plan_dict = json.loads(raw.strip())
 
         if not isinstance(plan_dict, dict):

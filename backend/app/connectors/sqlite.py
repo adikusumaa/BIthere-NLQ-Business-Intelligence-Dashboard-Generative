@@ -26,7 +26,7 @@ class SQLiteConnector(BaseConnector):
         if self.conn is not None:
             return
         try:
-            self.conn = await aiosqlite.connect(self._path())
+            self.conn = await aiosqlite.connect(self._path(), isolation_level=None)
             self.conn.row_factory = aiosqlite.Row
             logger.info("[SUCCESS] SQLite connection established")
         except Exception as error:

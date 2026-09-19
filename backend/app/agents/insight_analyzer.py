@@ -23,9 +23,8 @@ def _truncate_results(results: list[dict], max_rows: int = 20) -> str:
     return json.dumps(results[:max_rows], default=str)
 
 
-async def analyze(user_prompt: str, results: list[dict]) -> str:
+async def analyze(user_prompt: str,results: list[dict],api_key: str | None = None,) -> str:
     """Turn query results into a natural language business insight."""
-    # Guard: no data -> do not hallucinate
     if not results:
         return (
             "**Summary**\n"
@@ -58,7 +57,7 @@ async def analyze(user_prompt: str, results: list[dict]) -> str:
     ]
 
     try:
-        return await generate_chat(messages, temperature=0.3)
+        return await generate_chat(messages, temperature=0.3, api_key=api_key)
     except Exception as exc:
         log_error(f"Insight analyzer failed: {exc}")
         return (

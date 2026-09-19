@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_BACKOFF_MAX: int = 60
 
     # --- LLM defaults ---
-    LLM_MODEL: str = "llama-3.3-70b-versatile"
+    LLM_MODEL: str = "openai/gpt-oss-120b"
     LLM_TEMPERATURE: float = 0.1
     LLM_MAX_TOKENS: int = 4096
 
