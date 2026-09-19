@@ -12,6 +12,7 @@ import KnowledgeBasePage from "./pages/knowledge-base/KnowledgeBasePage.jsx";
 import { useAuthStore } from "./store/authStore";
 import { useWorkspaceStore } from "./store/workspaceStore";
 
+
 function LoadingScreen() {
   return (
     <div
@@ -30,6 +31,7 @@ function LoadingScreen() {
   );
 }
 
+
 function ProtectedRoute({ children }) {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
@@ -44,6 +46,26 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+
+function WorkspaceGuard({ children }) {
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
+  const wsLoading = useWorkspaceStore((s) => s.loading);
+  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
+  const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
+
+  useEffect(() => {
+    if (user) loadWorkspaces();
+  }, [user, loadWorkspaces]);
+
+  if (loading || wsLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!activeWorkspace) return <Navigate to="/wizard" replace />;
+  if (!activeWorkspace.setup_completed) return <Navigate to="/wizard" replace />;
+  return children;
+}
+
+
 function AdminRoute({ children }) {
   const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
@@ -55,6 +77,7 @@ function AdminRoute({ children }) {
   return children;
 }
 
+
 export default function App() {
   const init = useAuthStore((s) => s.init);
 
@@ -65,6 +88,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+
       <Route
         path="/wizard"
         element={
@@ -73,46 +97,52 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/integrations"
         element={
-          <ProtectedRoute>
+          <WorkspaceGuard>
             <IntegrationsPage />
-          </ProtectedRoute>
+          </WorkspaceGuard>
         }
       />
+
       <Route
         path="/datasets"
         element={
-          <ProtectedRoute>
+          <WorkspaceGuard>
             <DatasetsPage />
-          </ProtectedRoute>
+          </WorkspaceGuard>
         }
       />
+
       <Route
         path="/schema-builder"
         element={
-          <ProtectedRoute>
+          <WorkspaceGuard>
             <SchemaBuilderPage />
-          </ProtectedRoute>
+          </WorkspaceGuard>
         }
       />
+
       <Route
         path="/knowledge-base"
         element={
-          <ProtectedRoute>
+          <WorkspaceGuard>
             <KnowledgeBasePage />
-          </ProtectedRoute>
+          </WorkspaceGuard>
         }
       />
+
       <Route
         path="/chat"
         element={
-          <ProtectedRoute>
+          <WorkspaceGuard>
             <Chat />
-          </ProtectedRoute>
+          </WorkspaceGuard>
         }
       />
+
       <Route
         path="/admin"
         element={
@@ -121,6 +151,7 @@ export default function App() {
           </AdminRoute>
         }
       />
+
       <Route path="/" element={<Navigate to="/chat" replace />} />
       <Route path="*" element={<Navigate to="/chat" replace />} />
     </Routes>

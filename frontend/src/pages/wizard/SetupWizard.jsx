@@ -25,6 +25,12 @@ export default function SetupWizard() {
     }
   }, [activeWorkspace?.id, loadState]);
 
+  useEffect(() => {
+    if (setupCompleted) {
+      navigate("/chat", { replace: true });
+    }
+  }, [setupCompleted, navigate]);
+
   if (!activeWorkspace) {
     return (
       <div style={{ padding: 32 }}>

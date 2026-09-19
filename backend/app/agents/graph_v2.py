@@ -92,9 +92,24 @@ def _google_key(ctx: Optional[AgentContext]) -> Optional[str]:
 async def node_planner(state: AgentState) -> AgentState:
     log_process("Node: Planner (v2)")
     ctx = state.get("context")
+
+    # Build schema hint from workspace connector
+    schema_hint = ""
+    if ctx and ctx.connector:
+        try:
+            schema = await ctx.connector.get_schema()
+            lines = []
+            for table, columns in schema.items():
+                cols = ", ".join(f"{c['column']} {c['type']}" for c in columns)
+                lines.append(f"- {table}: {cols}")
+            schema_hint = "\n".join(lines)
+        except Exception as exc:
+            log_warning(f"Planner: could not load schema: {exc}")
+
     state["plan"] = await planner.plan(
         state["prompt"],
         api_key=_llm_key(ctx),
+        schema_hint=schema_hint,
     )
     return state
 

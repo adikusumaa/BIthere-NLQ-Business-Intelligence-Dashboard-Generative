@@ -1,5 +1,6 @@
 /**
  * Workspace store: active workspace + list + switching.
+ * Auto-creates a default workspace on first login.
  */
 
 import { create } from "zustand";
@@ -27,9 +28,21 @@ export const useWorkspaceStore = create((set, get) => ({
   loadWorkspaces: async () => {
     set({ loading: true, error: null });
     try {
-      const workspaces = await api.listWorkspaces();
+      let workspaces = await api.listWorkspaces();
+
+      // Auto-create default workspace on first login
+      if (workspaces.length === 0) {
+        const created = await api.createWorkspace({
+          name: "My Workspace",
+          plan: "free",
+        });
+        workspaces = [created];
+      }
+
       const storedId = localStorage.getItem(STORAGE_KEY);
-      let active = workspaces.find((w) => w.id === storedId) || workspaces[0] || null;
+      let active =
+        workspaces.find((w) => w.id === storedId) || workspaces[0] || null;
+
       if (active) {
         setActiveWorkspace(active.id);
         localStorage.setItem(STORAGE_KEY, active.id);

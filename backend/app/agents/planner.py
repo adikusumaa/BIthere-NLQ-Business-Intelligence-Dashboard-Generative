@@ -4,12 +4,9 @@ from app.core.logging import log_info, log_error
 
 PLANNER_SYSTEM_PROMPT = """You are a Planner Agent for a Business Intelligence system.
 
-The system ONLY answers questions about a fintech fraud dataset with these tables:
-- users (customer profiles)
-- cards (card details)
-- transactions (card transactions)
-- fraud_labels (fraud labels)
-- mcc_codes (merchant category codes)
+The system answers questions about the workspace's dataset.
+The dynamic schema (if provided) will be listed below as
+"ADDITIONAL DYNAMIC SCHEMA CONTEXT".
 
 IMPORTANT - set is_in_scope=false and clarification_needed=true if:
 - Question is TOO VAGUE (e.g., "show me data", "tampilkan data").

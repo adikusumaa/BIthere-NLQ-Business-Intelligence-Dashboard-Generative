@@ -3,6 +3,7 @@ import { v4 as uuidFallback } from "./uuidFallback";
 
 import { streamChat } from "../services/sse";
 import { useAuthStore } from "./authStore";
+import { useWorkspaceStore } from "./workspaceStore";
 
 export const useChatStore = create((set, get) => ({
   sessionId: null,
@@ -36,9 +37,11 @@ export const useChatStore = create((set, get) => ({
     if (!trimmed) return;
     if (get().isStreaming) return;
 
-    const token = useAuthStore.getState().getToken();
-    if (!token) {
-      set({ error: "Not authenticated" });
+    const token = useAuthStore.getState().getToken?.();
+    const workspaceId = useWorkspaceStore.getState().activeWorkspace?.id;
+
+    if (!workspaceId) {
+      set({ error: "No workspace selected. Please complete setup first." });
       return;
     }
 
@@ -68,7 +71,7 @@ export const useChatStore = create((set, get) => ({
       await streamChat({
         prompt: trimmed,
         sessionId,
-        token,
+        workspaceId,
         onEvent: ({ event, data }) => {
           switch (event) {
             case "start":
@@ -88,7 +91,8 @@ export const useChatStore = create((set, get) => ({
             case "error":
               set({ error: data?.message || "Unknown error" });
               updateLastAi((msg) => ({
-                content: msg.content || "Terjadi kesalahan saat memproses permintaan.",
+                content:
+                  msg.content || "Terjadi kesalahan saat memproses permintaan.",
               }));
               break;
             case "done":
