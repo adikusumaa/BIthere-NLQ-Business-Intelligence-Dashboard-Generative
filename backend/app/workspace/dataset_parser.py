@@ -2,10 +2,10 @@
 Dataset parser: sniff delimiter, detect encoding, preview rows,
 and infer column types for CSV / Excel / Parquet.
 """
-import re
 
 import csv
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -96,23 +96,50 @@ def _infer_type(series: pd.Series) -> str:
         return "timestamp"
 
     non_null = series.dropna()
-    if len(non_null) > 0:
-        # Only treat as boolean if values are actual Python bools (True/False)
-        sample_values = non_null.head(50).tolist()
-        if all(isinstance(v, bool) for v in sample_values):
-            return "boolean"
+    if len(non_null) == 0:
+        return "text"
 
-        # ISO 8601 timestamp detection (strict)
-        sample_str = non_null.head(50).astype(str)
-        iso_pattern = re.compile(
-            r"^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?"
+    sample_values = non_null.head(100).tolist()
+
+    # Only treat as boolean if values are actual Python bools (True/False)
+    if all(isinstance(v, bool) for v in sample_values):
+        return "boolean"
+
+    sample_str = [str(v).strip() for v in sample_values]
+
+    # ---- Zip code detection (5-digit or 5-4 pattern) ----
+    looks_like_zip = (
+        all(s.isdigit() and len(s) == 5 for s in sample_str)
+        or all(
+            len(s) >= 5 and s[:5].isdigit() and s[5:6] == "-"
+            for s in sample_str
         )
-        if all(iso_pattern.match(v) for v in sample_str):
-            try:
-                pd.to_datetime(sample_str, errors="raise")
-                return "timestamp"
-            except Exception:
-                pass
+    )
+    if looks_like_zip:
+        return "text"
+
+    # ---- Numeric / currency detection ----
+    cleaned = [
+        s.replace("$", "").replace(",", "").replace("€", "")
+         .replace("£", "").replace("¥", "").replace(" ", "")
+        for s in sample_str
+    ]
+    try:
+        [float(c) for c in cleaned]
+        return "float"
+    except (ValueError, TypeError):
+        pass
+
+    # ---- Strict ISO 8601 timestamp detection ----
+    iso_pattern = re.compile(
+        r"^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?"
+    )
+    if all(iso_pattern.match(s) for s in sample_str):
+        try:
+            pd.to_datetime(sample_str, errors="raise")
+            return "timestamp"
+        except Exception:
+            pass
 
     return "text"
 

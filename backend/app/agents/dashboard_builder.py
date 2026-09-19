@@ -13,7 +13,17 @@ from app.core.logging import log_process, log_info, log_error
 
 
 SCHEMA_CONTEXT = """
-Available tables and columns (PostgreSQL database: Supabase):
+Available tables (PostgreSQL: Supabase):
+
+transactions:
+  id, date (timestamptz), client_id, card_id, amount (numeric),
+  use_chip, merchant_id, merchant_city, merchant_state, zip,
+  mcc (integer), errors, fraud_label (text: 'Yes' | 'No')
+
+cards:
+  id, client_id, card_brand (Visa | Mastercard | Discover | Amex),
+  card_type (Credit | Debit | Debit (Prepaid)),
+  credit_limit, acct_open_date, card_on_dark_web
 
 users:
   id, current_age, retirement_age, birth_year, birth_month,
@@ -21,20 +31,13 @@ users:
   per_capita_income, yearly_income, total_debt,
   credit_score, num_credit_cards
 
-cards:
-  id, client_id, card_brand (Visa | Mastercard | Discover | Amex),
-  card_type (Credit | Debit | Debit (Prepaid)), credit_limit,
-  acct_open_date, card_on_dark_web
-
-transactions:
-  id, date (timestamp), client_id, card_id, amount, use_chip,
-  merchant_id, merchant_city, merchant_state, mcc, errors
-
-fraud_labels:
-  id, fraud_label (Yes | No)
-
 mcc_codes:
-  mcc_code, description
+  mcc_code (integer), description
+
+IMPORTANT:
+  - The dataset has a `fraud_labels` table, but its `id` does NOT match
+    `transactions.id`. Do NOT JOIN transactions with fraud_labels.
+  - Use `transactions.fraud_label` directly for fraud filtering.
 """
 
 
@@ -103,11 +106,12 @@ Filter values rules:
 
 SQL rules:
 - Only SELECT statements.
-- Table aliases: t (transactions), c (cards), u (users), f (fraud_labels), m (mcc_codes).
-- Join keys: t.client_id = u.id, t.card_id = c.id, t.mcc = m.mcc_code, t.id = f.id.
-- Fraud filter: f.fraud_label = 'Yes'.
-- Optional filters: [[AND alias.column = {{{{tag_name}}}}]].
-- Never add quotes around {{{{tag_name}}}}.
+- Table aliases: t (transactions), c (cards), u (users), m (mcc_codes).
+- Join keys: t.client_id = u.id, t.card_id = c.id, t.mcc = m.mcc_code.
+- DO NOT JOIN fraud_labels. Use transactions.fraud_label directly.
+- Fraud filter: t.fraud_label = 'Yes'.
+- Optional filter tags: [[AND alias.column = {{{{tag_name}}}}]].
+- Never wrap {{{{tag_name}}}} in quotes.
 - Non-aggregated queries must include LIMIT.
 
 Layout grid is 24 columns wide:

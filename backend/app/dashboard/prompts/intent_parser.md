@@ -93,14 +93,14 @@ When adding a card, the full object looks like:
 
 ## SQL BEST PRACTICES
 
-- Use table aliases: `t` (transactions), `c` (cards), `u` (users),
-  `f` (fraud_labels), `m` (mcc_codes).
+- Table aliases: `t` (transactions), `c` (cards), `u` (users), `m` (mcc_codes).
 - Join keys:
   - `t.client_id = u.id`
   - `t.card_id = c.id`
   - `t.mcc = m.mcc_code`
-  - `t.id = f.id`
-- Fraud filter: `f.fraud_label = 'Yes'`
+- **DO NOT JOIN `fraud_labels`.** Use `t.fraud_label = 'Yes'` directly.
+  (The IDs in that table do not match `transactions.id`.)
+- Fraud filter: `t.fraud_label = 'Yes'`
 - Add `LIMIT 1000` for non-aggregated queries.
 - Alias aggregates: `SUM(amount) AS total_amount`, `COUNT(*) AS cnt`.
 
