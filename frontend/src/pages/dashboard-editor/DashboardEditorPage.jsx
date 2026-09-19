@@ -92,7 +92,9 @@ export default function DashboardEditorPage() {
             state={state}
             selectedCardId={selectedCardId}
             onSelectCard={setSelectedCardId}
-          />
+            sessionId={sessionId}
+            onApplied={refreshAfterChange}
+        />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12, overflow: "auto" }}>

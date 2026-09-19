@@ -26,8 +26,10 @@ export default function SetupWizard() {
   }, [activeWorkspace?.id, loadState]);
 
   useEffect(() => {
-    if (setupCompleted) {
-      navigate("/chat", { replace: true });
+  const params = new URLSearchParams(window.location.search);
+  const force = params.get("force") === "1";
+    if (setupCompleted && !force) {
+        navigate("/chat", { replace: true });
     }
   }, [setupCompleted, navigate]);
 

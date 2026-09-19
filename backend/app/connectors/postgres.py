@@ -3,29 +3,32 @@ PostgreSQL connector implementation using asyncpg.
 """
 
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import asyncpg
 
-from app.connectors.base import BaseConnector
+from app.connectors.base import BaseConnector, ConnectorConfig
 from app.core.config import settings
 from app.core.logging import logger
 
 
 class PostgresConnector(BaseConnector):
     """
-    PostgreSQL connector for Supabase database.
+    PostgreSQL connector. If no config is passed, uses platform-level
+    SUPABASE_DB_URL (v1 behavior).
     """
 
-    def __init__(self):
-        self.pool: asyncpg.Pool | None = None
+    def __init__(self, config: Optional[ConnectorConfig] = None):
+        self.config = config
+        self.pool: Optional[asyncpg.Pool] = None
         self._lock = asyncio.Lock()
 
+    def _dsn(self) -> str:
+        if self.config and self.config.connection_string:
+            return self.config.connection_string
+        return settings.SUPABASE_DB_URL
+
     async def connect(self) -> None:
-        """
-        Create connection pool to PostgreSQL using SUPABASE_DB_URL.
-        Uses a lock to prevent concurrent pool creation.
-        """
         if self.pool is not None:
             return
 
@@ -33,31 +36,29 @@ class PostgresConnector(BaseConnector):
             if self.pool is not None:
                 return
             try:
-                database_url = settings.SUPABASE_DB_URL
-                if not database_url:
-                    raise ValueError("SUPABASE_DB_URL is not set in .env")
+                dsn = self._dsn()
+                if not dsn:
+                    raise ValueError("PostgreSQL DSN is not set")
 
                 self.pool = await asyncpg.create_pool(
-                    database_url,
+                    dsn,
                     min_size=1,
                     max_size=8,
                     timeout=10,
                     command_timeout=30,
                 )
-                logger.success("PostgreSQL connection pool created")
+                logger.info("[SUCCESS] PostgreSQL connection pool created")
             except Exception as error:
-                logger.error(f"Failed to connect to PostgreSQL: {str(error)}")
+                logger.error(f"[ERROR] Failed to connect to PostgreSQL: {error}")
                 raise
 
     async def disconnect(self) -> None:
-        """Close connection pool."""
         if self.pool:
             await self.pool.close()
             self.pool = None
-            logger.info("PostgreSQL connection pool closed")
+            logger.info("[PROCESS] PostgreSQL connection pool closed")
 
     async def execute_query(self, query: str) -> List[Dict[str, Any]]:
-        """Execute SQL query and return results as list of dicts."""
         if not self.pool:
             await self.connect()
 
@@ -66,11 +67,10 @@ class PostgresConnector(BaseConnector):
                 records = await connection.fetch(query)
                 return [dict(record) for record in records]
         except Exception as error:
-            logger.error(f"Query execution failed: {str(error)}")
+            logger.error(f"[ERROR] Query execution failed: {error}")
             raise
 
     async def get_schema(self) -> Dict[str, Any]:
-        """Retrieve database schema (tables and columns)."""
         query = """
             SELECT table_name, column_name, data_type
             FROM information_schema.columns
@@ -79,14 +79,14 @@ class PostgresConnector(BaseConnector):
         """
         results = await self.execute_query(query)
 
-        schema = {}
+        schema: Dict[str, Any] = {}
         for row in results:
             table = row["table_name"]
-            if table not in schema:
-                schema[table] = []
-            schema[table].append({
+            schema.setdefault(table, []).append({
                 "column": row["column_name"],
                 "type": row["data_type"],
             })
-
         return schema
+
+    def get_dialect(self) -> str:
+        return "postgresql"

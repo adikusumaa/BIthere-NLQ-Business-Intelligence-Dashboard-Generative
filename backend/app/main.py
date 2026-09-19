@@ -24,6 +24,7 @@ from app.api.routes import (
     users,
     wizard,
     workspaces,
+    dashboard_import,
 )
 from app.core.config import settings
 from app.core.logging import logger
@@ -61,6 +62,7 @@ app.include_router(dashboard_patch.router)
 app.include_router(dashboard_version.router)
 app.include_router(dashboard_undo.router)
 app.include_router(dashboard_manual.router)
+app.include_router(dashboard_import.router)
 
 
 @app.get("/", tags=["Health"])

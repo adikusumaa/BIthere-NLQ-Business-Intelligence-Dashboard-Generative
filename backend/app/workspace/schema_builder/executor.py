@@ -61,11 +61,16 @@ async def apply_ddl(
     """
     Execute CREATE TABLE (and indexes).
     Optionally drop the table first.
+    For PostgreSQL, uses CASCADE to handle FK dependencies.
     """
     try:
         if drop_if_exists and table_name:
             dialect = connector.get_dialect()
-            await connector.execute_query(f"DROP TABLE IF EXISTS {_quote_identifier(table_name, dialect)}")
+            quoted = _quote_identifier(table_name, dialect)
+            if dialect == "postgresql":
+                await connector.execute_query(f"DROP TABLE IF EXISTS {quoted} CASCADE")
+            else:
+                await connector.execute_query(f"DROP TABLE IF EXISTS {quoted}")
 
         statements = [s.strip() for s in ddl.split(";") if s.strip()]
         for stmt in statements:
