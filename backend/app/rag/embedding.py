@@ -1,11 +1,11 @@
 """
 Embedding client using Google Generative Language REST API v1.
-Includes Redis caching to avoid repeated API calls.
+Supports workspace-scoped API keys and per-workspace Redis cache prefix.
 """
 
 import asyncio
 import hashlib
-from typing import List
+from typing import List, Optional
 
 import requests
 
@@ -14,29 +14,22 @@ from app.core.logging import logger
 from app.services.cache import cache
 
 
-EMBEDDING_ENDPOINT = (
-    f"https://generativelanguage.googleapis.com/v1/models/"
-    f"{settings.EMBEDDING_MODEL}:embedContent"
-)
+def _endpoint() -> str:
+    return (
+        f"https://generativelanguage.googleapis.com/v1/models/"
+        f"{settings.EMBEDDING_MODEL}:embedContent"
+    )
 
 
-def _get_cache_key(text: str) -> str:
-    """
-    Generate a cache key based on the text hash.
-    """
-
+def _cache_key(text: str, prefix: str) -> str:
     text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
-    return f"embedding:{text_hash}"
+    return f"{prefix}embedding:{text_hash}"
 
 
-def _call_embedding_api(text: str) -> List[float]:
-    """
-    Call Google Generative Language REST API v1 for embedding.
-    """
-
+def _call_embedding_api(text: str, api_key: str) -> List[float]:
     response = requests.post(
-        EMBEDDING_ENDPOINT,
-        params={"key": settings.GOOGLE_API_KEY},
+        _endpoint(),
+        params={"key": api_key},
         json={"content": {"parts": [{"text": text}]}},
         timeout=30,
     )
@@ -45,22 +38,41 @@ def _call_embedding_api(text: str) -> List[float]:
     return data["embedding"]["values"]
 
 
-async def embed_text(text: str) -> List[float]:
+async def embed_text(
+    text: str,
+    api_key: Optional[str] = None,
+    redis_prefix: str = "",
+) -> List[float]:
     """
     Get embedding for text with Redis caching.
+    If api_key is None, falls back to platform-level GOOGLE_API_KEY (v1 behavior).
     """
+    key = api_key or settings.GOOGLE_API_KEY
+    if not key:
+        raise ValueError("No Google API key available for embedding")
 
-    cache_key = _get_cache_key(text)
+    cache_key = _cache_key(text, redis_prefix)
 
     cached = await cache.get(cache_key)
     if cached:
-        logger.info(f"Embedding cache hit for key {cache_key}")
+        logger.info(f"[PROCESS] Embedding cache hit: {cache_key}")
         return cached
 
-    logger.process(f"Calling embedding API for text: {text[:50]}...")
-    embedding = await asyncio.to_thread(_call_embedding_api, text)
+    logger.info(f"[PROCESS] Calling embedding API for text: {text[:50]}...")
+    embedding = await asyncio.to_thread(_call_embedding_api, text, key)
 
     await cache.set(cache_key, embedding, ttl=settings.CACHE_EMBEDDING_TTL)
-    logger.success("Embedding generated and cached")
-
+    logger.info("[SUCCESS] Embedding generated and cached")
     return embedding
+
+
+async def embed_batch(
+    texts: List[str],
+    api_key: Optional[str] = None,
+    redis_prefix: str = "",
+) -> List[List[float]]:
+    """Embed a batch of texts sequentially (Google v1 API has no batch)."""
+    results = []
+    for t in texts:
+        results.append(await embed_text(t, api_key=api_key, redis_prefix=redis_prefix))
+    return results
