@@ -4,7 +4,13 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Admin from "./pages/Admin.jsx";
 import Chat from "./pages/Chat.jsx";
 import Login from "./pages/Login.jsx";
+import SetupWizard from "./pages/wizard/SetupWizard.jsx";
+import IntegrationsPage from "./pages/integrations/IntegrationsPage.jsx";
+import DatasetsPage from "./pages/datasets/DatasetsPage.jsx";
+import SchemaBuilderPage from "./pages/schema-builder/SchemaBuilderPage.jsx";
+import KnowledgeBasePage from "./pages/knowledge-base/KnowledgeBasePage.jsx";
 import { useAuthStore } from "./store/authStore";
+import { useWorkspaceStore } from "./store/workspaceStore";
 
 function LoadingScreen() {
   return (
@@ -27,6 +33,11 @@ function LoadingScreen() {
 function ProtectedRoute({ children }) {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
+  const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
+
+  useEffect(() => {
+    if (user) loadWorkspaces();
+  }, [user, loadWorkspaces]);
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
@@ -54,6 +65,46 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route
+        path="/wizard"
+        element={
+          <ProtectedRoute>
+            <SetupWizard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integrations"
+        element={
+          <ProtectedRoute>
+            <IntegrationsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/datasets"
+        element={
+          <ProtectedRoute>
+            <DatasetsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/schema-builder"
+        element={
+          <ProtectedRoute>
+            <SchemaBuilderPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/knowledge-base"
+        element={
+          <ProtectedRoute>
+            <KnowledgeBasePage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/chat"
         element={

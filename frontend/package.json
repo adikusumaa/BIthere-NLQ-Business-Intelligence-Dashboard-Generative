@@ -9,10 +9,12 @@
     "preview": "vite preview --host 0.0.0.0 --port 5173"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
     "@supabase/supabase-js": "^2.45.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.30.6",
+    "reactflow": "^11.11.4",
     "zustand": "^4.5.7"
   },
   "devDependencies": {

@@ -1,17 +1,37 @@
 /**
- * SSE client for the BIthere chat endpoint.
+ * SSE client for BIthere v2 chat endpoint.
  * Uses fetch + ReadableStream because EventSource does not support POST.
  */
 
-export async function streamChat({ prompt, sessionId, token, onEvent }) {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/chat`, {
+import { supabase } from "./supabase";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+async function getAuthToken() {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token || null;
+}
+
+export async function streamChat({
+  prompt,
+  sessionId,
+  workspaceId,
+  onEvent,
+  signal,
+}) {
+  const token = await getAuthToken();
+  const headers = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (workspaceId) headers["X-Workspace-ID"] = workspaceId;
+
+  const response = await fetch(`${API_BASE}/api/chat/v2`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify({ message: prompt, session_id: sessionId }),
+    signal,
   });
 
   if (!response.ok) {
