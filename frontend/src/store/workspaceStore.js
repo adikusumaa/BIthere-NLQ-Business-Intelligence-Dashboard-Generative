@@ -1,6 +1,7 @@
 /**
  * Workspace store: active workspace + list + switching.
  * Auto-creates a default workspace on first login.
+ * Tracks `initialized` to prevent race-condition redirects.
  */
 
 import { create } from "zustand";
@@ -12,6 +13,7 @@ export const useWorkspaceStore = create((set, get) => ({
   workspaces: [],
   activeWorkspace: null,
   loading: false,
+  initialized: false,
   error: null,
 
   setActive: (workspace) => {
@@ -47,10 +49,16 @@ export const useWorkspaceStore = create((set, get) => ({
         setActiveWorkspace(active.id);
         localStorage.setItem(STORAGE_KEY, active.id);
       }
-      set({ workspaces, activeWorkspace: active, loading: false });
+
+      set({
+        workspaces,
+        activeWorkspace: active,
+        loading: false,
+        initialized: true,
+      });
       return workspaces;
     } catch (err) {
-      set({ error: err.message, loading: false });
+      set({ error: err.message, loading: false, initialized: true });
       return [];
     }
   },
@@ -79,6 +87,6 @@ export const useWorkspaceStore = create((set, get) => ({
   clear: () => {
     localStorage.removeItem(STORAGE_KEY);
     setActiveWorkspace(null);
-    set({ workspaces: [], activeWorkspace: null });
+    set({ workspaces: [], activeWorkspace: null, initialized: false });
   },
 }));

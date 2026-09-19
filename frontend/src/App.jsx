@@ -51,6 +51,7 @@ function WorkspaceGuard({ children }) {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
   const wsLoading = useWorkspaceStore((s) => s.loading);
+  const wsInitialized = useWorkspaceStore((s) => s.initialized);
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
   const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
 
@@ -60,8 +61,11 @@ function WorkspaceGuard({ children }) {
 
   if (loading || wsLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
+  if (!wsInitialized) return <LoadingScreen />;
+
   if (!activeWorkspace) return <Navigate to="/wizard" replace />;
   if (!activeWorkspace.setup_completed) return <Navigate to="/wizard" replace />;
+
   return children;
 }
 
