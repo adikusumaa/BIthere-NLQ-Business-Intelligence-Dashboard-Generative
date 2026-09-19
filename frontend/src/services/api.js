@@ -178,4 +178,35 @@ export const api = {
     request("POST", `/api/workspaces/${wsId}/wizard/complete`),
   resetWizard: (wsId) =>
     request("POST", `/api/workspaces/${wsId}/wizard/reset`),
+    // Dashboard editor (F-13)
+  getDashboardState: (wsId, dashboardId) =>
+    request("GET", `/api/workspaces/${wsId}/dashboards/${dashboardId}/state`),
+  listDashboardVersions: (wsId, dashboardId) =>
+    request("GET", `/api/workspaces/${wsId}/dashboards/${dashboardId}/versions`),
+  getDashboardVersion: (wsId, dashboardId, version) =>
+    request("GET", `/api/workspaces/${wsId}/dashboards/${dashboardId}/versions/${version}`),
+  listDashboardPatches: (wsId, dashboardId, limit = 100) =>
+    request("GET", `/api/workspaces/${wsId}/dashboards/${dashboardId}/patches?limit=${limit}`),
+  parseDashboardPatch: (wsId, dashboardId, instruction) =>
+    request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/patch/parse`, {
+      body: { instruction },
+    }),
+  applyDashboardPatch: (wsId, dashboardId, { patch, instruction, base_version }) =>
+    request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/patch/apply`, {
+      body: { patch, instruction, base_version },
+    }),
+  rollbackDashboard: (wsId, dashboardId, { target_version, base_version }) =>
+    request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/rollback`, {
+      body: { target_version, base_version },
+    }),
+  diffDashboard: (wsId, dashboardId, v1, v2) =>
+    request("GET", `/api/workspaces/${wsId}/dashboards/${dashboardId}/diff?v1=${v1}&v2=${v2}`),
+  manualEditDashboard: (wsId, dashboardId, { patch, base_version, session_id }) =>
+    request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/manual-edit`, {
+      body: { patch, base_version, session_id },
+    }),
+  undoDashboard: (wsId, dashboardId, sessionId) =>
+    request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/undo?session_id=${sessionId}`),
+  redoDashboard: (wsId, dashboardId, sessionId) =>
+    request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/redo?session_id=${sessionId}`),
 };

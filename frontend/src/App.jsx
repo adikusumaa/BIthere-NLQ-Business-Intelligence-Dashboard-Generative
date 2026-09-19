@@ -12,6 +12,7 @@ import KnowledgeBasePage from "./pages/knowledge-base/KnowledgeBasePage.jsx";
 import { useAuthStore } from "./store/authStore";
 import { useWorkspaceStore } from "./store/workspaceStore";
 
+import DashboardEditorPage from "./pages/dashboard-editor/DashboardEditorPage.jsx";
 
 function LoadingScreen() {
   return (
@@ -137,6 +138,16 @@ export default function App() {
           </WorkspaceGuard>
         }
       />
+
+      <Route
+        path="/dashboard/:id/edit"
+        element={
+          <WorkspaceGuard>
+            <DashboardEditorPage />
+          </WorkspaceGuard>
+        }
+      />
+
 
       <Route
         path="/chat"
