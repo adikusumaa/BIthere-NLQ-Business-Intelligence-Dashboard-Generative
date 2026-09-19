@@ -1,13 +1,15 @@
 """
 Dashboard manual edit routes (F-13): patch from drag/resize UI.
-Wrapper around apply that additionally pushes to the undo stack.
+Wrapper around apply that additionally pushes to the undo stack
+and syncs to Metabase.
 """
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.core.logging import logger
 from app.core.security import get_current_user
 from app.dashboard import state_store
 from app.dashboard import undo_redo
@@ -17,7 +19,9 @@ from app.dashboard.patch_applier import PatchApplyError, apply
 from app.dashboard.patch_model import parse_patch
 from app.dashboard.patch_validator import validate
 from app.dashboard.state_store import DashboardNotFoundError, StateStoreError
+from app.dashboard.sync_helper import sync_to_metabase
 from app.workspace.context import WorkspaceContext, get_workspace_context
+from app.dashboard.state_model import find_card
 
 
 router = APIRouter(
@@ -42,7 +46,7 @@ async def manual_edit_endpoint(
 ) -> dict:
     """
     Apply a patch that originated from a UI drag/resize/property edit.
-    Same pipeline as patch/apply, but records the patch into the undo stack.
+    Same pipeline as patch/apply, plus undo stack push and Metabase sync.
     """
     try:
         async with lock(dashboard_id):
@@ -67,6 +71,19 @@ async def manual_edit_endpoint(
             except PatchApplyError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
 
+            metabase_results, refs = await sync_to_metabase(
+                new_state.metabase_dashboard_id,
+                actions,
+            )
+
+            for cid, ref in refs.items():
+                card = find_card(new_state, cid)
+                if card:
+                    if ref.get("mb_card_id"):
+                        card.metabase.card_id = ref["mb_card_id"]
+                    if ref.get("mb_dashcard_id"):
+                        card.metabase.dashcard_id = ref["mb_dashcard_id"]
+
             await state_store.save_version(
                 dashboard_id=dashboard_id,
                 state=new_state,
@@ -78,10 +95,16 @@ async def manual_edit_endpoint(
             if body.session_id:
                 await undo_redo.push_undo(body.session_id, patch)
 
+            logger.info(
+                f"[SUCCESS] Manual edit: dashboard={dashboard_id} "
+                f"v{state.version} -> v{new_state.version}"
+            )
+
             return {
                 "version": new_state.version,
                 "state": new_state.model_dump(mode="json"),
                 "actions_count": len(actions),
+                "metabase_results": metabase_results,
             }
     except LockError as exc:
         raise HTTPException(status_code=423, detail=str(exc))

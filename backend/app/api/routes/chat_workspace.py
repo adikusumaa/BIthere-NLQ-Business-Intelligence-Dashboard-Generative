@@ -124,8 +124,12 @@ async def _stream_events(
         yield _sse("insight", {"text": insight})
 
     dashboard_url = result.get("dashboard_url")
+    dashboard_mb_id = result.get("dashboard_metabase_id")
     if dashboard_url:
-        yield _sse("dashboard", {"url": dashboard_url})
+        yield _sse("dashboard", {
+            "url": dashboard_url,
+            "metabase_id": dashboard_mb_id,
+        })
 
     error = result.get("error")
     if error:

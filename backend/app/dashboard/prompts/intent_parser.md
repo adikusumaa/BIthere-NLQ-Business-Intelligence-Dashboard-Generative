@@ -8,6 +8,14 @@ implements only what the user asked. Everything else must remain unchanged.
 
 {state_summary}
 
+## AVAILABLE DATABASE SCHEMA (from workspace connector)
+
+{schema_context}
+
+Use ONLY the tables and columns listed above when writing SQL.
+Never invent table or column names.
+If a column you need is not in the schema, pick the closest matching one.
+
 ## USER INSTRUCTION
 
 {instruction}
@@ -68,3 +76,81 @@ When adding a card, the full object looks like:
   "position": {"row": 3, "col": 0, "size_x": 12, "size_y": 4},
   "style": {"color": "#3b82f6"}
 }
+```
+
+## HARD RULES
+
+1. **Preserve-first**: never modify anything the user did not ask about.
+2. **Stable IDs**: use card_id / page_id / filter_id values that already exist
+   in the state summary (except when adding new entities, then generate a
+   new `card-<uuid>` id).
+3. **SQL safety**: any new SQL must be a single SELECT statement. Never use
+   DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE, CREATE.
+4. **Valid types**: patch_type must be one of the 13 listed above.
+5. **Hex colors**: colors must be `#rrggbb` format.
+6. **No nested COMPOSITE**: patches inside COMPOSITE cannot themselves be COMPOSITE.
+7. **Output**: return **raw JSON only**. No markdown fences, no commentary.
+
+## SQL BEST PRACTICES
+
+- Use table aliases: `t` (transactions), `c` (cards), `u` (users),
+  `f` (fraud_labels), `m` (mcc_codes).
+- Join keys:
+  - `t.client_id = u.id`
+  - `t.card_id = c.id`
+  - `t.mcc = m.mcc_code`
+  - `t.id = f.id`
+- Fraud filter: `f.fraud_label = 'Yes'`
+- Add `LIMIT 1000` for non-aggregated queries.
+- Alias aggregates: `SUM(amount) AS total_amount`, `COUNT(*) AS cnt`.
+
+## EXAMPLES
+
+### Example 1 — Add a chart
+
+Instruction: "Tambahkan bar chart 'Fraud by Brand' di atas 'Top 10 States'."
+
+Output:
+```json
+{
+  "patch_type": "ADD_CARD",
+  "page_id": "page-1",
+  "insert_before": "card-top10states",
+  "card": {
+    "id": "card-fraud-by-brand",
+    "title": "Fraud by Brand",
+    "type": "bar",
+    "sql": "SELECT c.card_brand AS brand, COUNT(*) AS fraud_count FROM transactions t JOIN cards c ON t.card_id = c.id JOIN fraud_labels f ON t.id = f.id WHERE f.fraud_label = 'Yes' GROUP BY c.card_brand ORDER BY fraud_count DESC",
+    "position": {"row": 8, "col": 0, "size_x": 12, "size_y": 4},
+    "style": {"color": "#3b82f6"}
+  }
+}
+```
+
+### Example 2 — Swap two cards
+
+Instruction: "Tukar posisi 'Monthly Trend' dan 'Fraud by Brand'."
+
+Output:
+```json
+{
+  "patch_type": "SWAP_CARDS",
+  "card_id_a": "card-monthly-trend",
+  "card_id_b": "card-fraud-by-brand"
+}
+```
+
+### Example 3 — Change color
+
+Instruction: "Ubah warna 'Monthly Trend' jadi merah."
+
+Output:
+```json
+{
+  "patch_type": "CHANGE_COLOR",
+  "card_id": "card-monthly-trend",
+  "color": "#ef4444"
+}
+```
+
+Now generate the patch for the current instruction.

@@ -1,7 +1,9 @@
 """
 Intent Parser Agent (F-13).
-Translates a natural-language instruction into a structured Patch,
-using the workspace's Groq key and a summary of the current dashboard state.
+Translates a natural-language instruction into a structured Patch, using the
+workspace's Groq key and a summary of the current dashboard state.
+Injects the workspace schema hint so the LLM does not hallucinate
+table/column names.
 """
 
 import hashlib
@@ -19,7 +21,6 @@ from app.services.cache import cache
 
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "intent_parser.md"
-
 PATCH_CACHE_TTL = 3600
 
 
@@ -52,6 +53,7 @@ async def parse_instruction(
     state: DashboardState,
     api_key: Optional[str] = None,
     redis_prefix: str = "",
+    schema_hint: str = "",
 ) -> Any:
     """
     Translate a natural-language instruction into a validated Patch object.
@@ -61,6 +63,7 @@ async def parse_instruction(
         state: Current DashboardState (version, pages, cards).
         api_key: Workspace Groq key. If None, platform key is used.
         redis_prefix: Workspace redis prefix for cached patch reuse.
+        schema_hint: Optional schema string ("table(col1, col2, ...)" per line).
 
     Returns:
         A Patch instance (AddCardPatch, RemoveCardPatch, ..., or CompositePatch).
@@ -81,10 +84,17 @@ async def parse_instruction(
             logger.warning("[WARNING] Cached patch invalid, regenerating")
 
     template = _load_prompt_template()
+
+    if schema_hint and schema_hint.strip():
+        schema_context = schema_hint.strip()
+    else:
+        schema_context = "(no schema available; prefer non-ADD_CARD patches)"
+
     prompt = (
         template
         .replace("{state_summary}", summarize_state(state))
         .replace("{instruction}", instruction.strip())
+        .replace("{schema_context}", schema_context)
     )
 
     messages = [
@@ -101,7 +111,14 @@ async def parse_instruction(
         logger.warning("[WARNING] Intent parser: invalid JSON, retrying with reminder")
         retry_messages = messages + [
             {"role": "assistant", "content": raw},
-            {"role": "user", "content": "Your previous answer was not valid JSON. Return ONLY the raw JSON patch now, without any explanation or markdown."},
+            {
+                "role": "user",
+                "content": (
+                    "Your previous answer was not valid JSON. "
+                    "Return ONLY the raw JSON patch now, without any "
+                    "explanation or markdown."
+                ),
+            },
         ]
         raw2 = await generate_chat(retry_messages, temperature=0.0, api_key=api_key)
         cleaned2 = _strip_fences(raw2)

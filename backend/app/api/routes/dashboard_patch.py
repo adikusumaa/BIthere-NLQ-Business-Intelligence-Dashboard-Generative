@@ -1,5 +1,6 @@
 """
-Dashboard patch routes (F-13): parse NL → patch, apply patch.
+Dashboard patch routes (F-13): parse NL -> patch, apply patch.
+Both endpoints inject the workspace schema hint into the intent parser.
 """
 
 from typing import Optional
@@ -16,7 +17,9 @@ from app.dashboard.lock import LockError, lock
 from app.dashboard.patch_applier import PatchApplyError, apply
 from app.dashboard.patch_model import parse_patch
 from app.dashboard.patch_validator import validate
+from app.dashboard.state_model import find_card
 from app.dashboard.state_store import DashboardNotFoundError, StateStoreError
+from app.dashboard.sync_helper import sync_to_metabase
 from app.workspace.context import WorkspaceContext, get_workspace_context
 
 
@@ -36,6 +39,37 @@ class ApplyRequest(BaseModel):
     base_version: int
 
 
+async def _load_schema_hint(workspace_id: str) -> str:
+    """
+    Build a compact schema description from the workspace's default connector.
+    Skips internal BIthere tables.
+    """
+    internal = {
+        "profiles", "query_history", "dashboard_configs", "business_glossary",
+        "ingestion_logs", "audit_logs", "usage_events",
+        "dashboard_versions", "dashboard_patches",
+    }
+    try:
+        from app.workspace.data_sources import get_workspace_connector
+        connector = await get_workspace_connector(workspace_id)
+        await connector.connect()
+        try:
+            schema = await connector.get_schema()
+        finally:
+            await connector.disconnect()
+
+        lines = []
+        for table, columns in schema.items():
+            if table in internal or table.startswith("workspace_"):
+                continue
+            cols = ", ".join(c["column"] for c in columns)
+            lines.append(f"{table}({cols})")
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.warning(f"[WARNING] Could not load schema hint: {exc}")
+        return ""
+
+
 @router.post("/{dashboard_id}/patch/parse")
 async def parse_patch_endpoint(
     workspace_id: str,
@@ -50,12 +84,15 @@ async def parse_patch_endpoint(
     except DashboardNotFoundError:
         raise HTTPException(status_code=404, detail="Dashboard not found")
 
+    schema_hint = await _load_schema_hint(workspace_id)
+
     try:
         patch = await parse_instruction(
             body.instruction,
             state,
             api_key=ctx.groq_key,
             redis_prefix=ctx.redis_prefix,
+            schema_hint=schema_hint,
         )
     except IntentParseError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -78,8 +115,9 @@ async def apply_patch_endpoint(
     user: dict = Depends(get_current_user),
 ) -> dict:
     """
-    Apply a patch. Can accept either a raw patch dict OR a NL instruction.
-    Uses lock + optimistic version check.
+    Apply a patch. Accepts either a raw patch dict OR an NL instruction.
+    Syncs to Metabase AFTER apply, then patches back the Metabase IDs
+    into the state before saving.
     """
     try:
         async with lock(dashboard_id):
@@ -97,11 +135,14 @@ async def apply_patch_endpoint(
                 except Exception as exc:
                     raise HTTPException(status_code=400, detail=f"Invalid patch: {exc}")
             elif body.instruction:
+                schema_hint = await _load_schema_hint(workspace_id)
                 try:
                     patch = await parse_instruction(
-                        body.instruction, state,
+                        body.instruction,
+                        state,
                         api_key=ctx.groq_key,
                         redis_prefix=ctx.redis_prefix,
+                        schema_hint=schema_hint,
                     )
                 except IntentParseError as exc:
                     raise HTTPException(status_code=400, detail=str(exc))
@@ -111,15 +152,33 @@ async def apply_patch_endpoint(
             # Validate
             result = validate(patch, state)
             if not result.valid:
-                raise HTTPException(status_code=400, detail=f"Validation failed: {result.reason}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Validation failed: {result.reason}",
+                )
 
-            # Apply
+            # Apply to state
             try:
                 new_state, actions = apply(state, patch)
             except PatchApplyError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
 
-            # Save
+            # Sync to Metabase first, get back IDs
+            metabase_results, refs = await sync_to_metabase(
+                new_state.metabase_dashboard_id,
+                actions,
+            )
+
+            # Patch Metabase IDs back into the new state
+            for cid, ref in refs.items():
+                card = find_card(new_state, cid)
+                if card:
+                    if ref.get("mb_card_id"):
+                        card.metabase.card_id = ref["mb_card_id"]
+                    if ref.get("mb_dashcard_id"):
+                        card.metabase.dashcard_id = ref["mb_dashcard_id"]
+
+            # Save version (with Metabase IDs already filled in)
             saved = await state_store.save_version(
                 dashboard_id=dashboard_id,
                 state=new_state,
@@ -129,8 +188,9 @@ async def apply_patch_endpoint(
             )
 
             logger.info(
-                f"[SUCCESS] Patch applied via API: dashboard={dashboard_id} "
-                f"v{state.version} -> v{new_state.version}"
+                f"[SUCCESS] Patch applied: dashboard={dashboard_id} "
+                f"v{state.version} -> v{new_state.version} "
+                f"({len(actions)} actions, {len(metabase_results)} mb results)"
             )
 
             return {
@@ -138,6 +198,7 @@ async def apply_patch_endpoint(
                 "parent_version": new_state.parent_version,
                 "state": new_state.model_dump(mode="json"),
                 "actions_count": len(actions),
+                "metabase_results": metabase_results,
                 "saved_id": saved.get("id"),
             }
     except LockError as exc:
@@ -153,5 +214,5 @@ async def reject_patch(
     ctx: WorkspaceContext = Depends(get_workspace_context),
     user: dict = Depends(get_current_user),
 ) -> dict:
-    """Reject a previewed patch (no-op for now, reserved for preview flow)."""
+    """Reject a previewed patch (reserved for future preview flow)."""
     return {"rejected": True, "dashboard_id": dashboard_id}

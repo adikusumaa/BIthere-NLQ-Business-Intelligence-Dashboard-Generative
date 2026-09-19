@@ -1,16 +1,21 @@
 """
 Dashboard undo/redo routes (F-13).
+Both endpoints sync their effect to Metabase.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.logging import logger
 from app.core.security import get_current_user
 from app.dashboard import undo_redo
+from app.dashboard import state_store
+from app.dashboard.diff_actions import diff_to_actions
 from app.dashboard.lock import LockError, lock
 from app.dashboard.patch_model import parse_patch
 from app.dashboard.patch_applier import PatchApplyError, apply
-from app.dashboard import state_store
+from app.dashboard.state_model import find_card
 from app.dashboard.state_store import DashboardNotFoundError, StateStoreError
+from app.dashboard.sync_helper import sync_to_metabase
 from app.workspace.context import WorkspaceContext, get_workspace_context
 
 
@@ -29,8 +34,8 @@ async def undo_endpoint(
     user: dict = Depends(get_current_user),
 ) -> dict:
     """
-    Pop the last patch from the session undo stack and apply its inverse
-    by loading the parent version of the current state.
+    Undo: pop last patch from session undo stack, restore parent version,
+    and sync the diff to Metabase.
     """
     patch_dict = await undo_redo.undo(session_id)
     if not patch_dict:
@@ -44,11 +49,18 @@ async def undo_endpoint(
 
             parent = await state_store.load_version(dashboard_id, current.parent_version)
 
-            # Create a new version that is a copy of parent
+            # Diff current vs parent -> sync actions
+            actions = diff_to_actions(current, parent)
+
             from copy import deepcopy
             new_state = deepcopy(parent)
             new_state.parent_version = current.version
             new_state.version = current.version + 1
+
+            metabase_results, _ = await sync_to_metabase(
+                new_state.metabase_dashboard_id,
+                actions,
+            )
 
             await state_store.save_version(
                 dashboard_id=dashboard_id,
@@ -58,7 +70,17 @@ async def undo_endpoint(
                 from_version=current.version,
                 patch_status="rolled_back",
             )
-            return new_state.model_dump(mode="json")
+
+            logger.info(
+                f"[SUCCESS] Undo: dashboard={dashboard_id} "
+                f"v{current.version} -> v{new_state.version}"
+            )
+
+            return {
+                "version": new_state.version,
+                "state": new_state.model_dump(mode="json"),
+                "metabase_results": metabase_results,
+            }
     except LockError as exc:
         raise HTTPException(status_code=423, detail=str(exc))
     except DashboardNotFoundError:
@@ -75,6 +97,9 @@ async def redo_endpoint(
     ctx: WorkspaceContext = Depends(get_workspace_context),
     user: dict = Depends(get_current_user),
 ) -> dict:
+    """
+    Redo: pop from redo stack, reapply the patch, and sync to Metabase.
+    """
     patch_dict = await undo_redo.redo(session_id)
     if not patch_dict:
         raise HTTPException(status_code=400, detail="Nothing to redo")
@@ -87,7 +112,23 @@ async def redo_endpoint(
             except Exception as exc:
                 raise HTTPException(status_code=400, detail=f"Invalid patch: {exc}")
 
-            new_state, _ = apply(state, patch)
+            try:
+                new_state, actions = apply(state, patch)
+            except PatchApplyError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+
+            metabase_results, refs = await sync_to_metabase(
+                new_state.metabase_dashboard_id,
+                actions,
+            )
+
+            for cid, ref in refs.items():
+                card = find_card(new_state, cid)
+                if card:
+                    if ref.get("mb_card_id"):
+                        card.metabase.card_id = ref["mb_card_id"]
+                    if ref.get("mb_dashcard_id"):
+                        card.metabase.dashcard_id = ref["mb_dashcard_id"]
 
             await state_store.save_version(
                 dashboard_id=dashboard_id,
@@ -96,7 +137,17 @@ async def redo_endpoint(
                 user_id=user["id"],
                 from_version=state.version,
             )
-            return new_state.model_dump(mode="json")
+
+            logger.info(
+                f"[SUCCESS] Redo: dashboard={dashboard_id} "
+                f"v{state.version} -> v{new_state.version}"
+            )
+
+            return {
+                "version": new_state.version,
+                "state": new_state.model_dump(mode="json"),
+                "metabase_results": metabase_results,
+            }
     except LockError as exc:
         raise HTTPException(status_code=423, detail=str(exc))
     except PatchApplyError as exc:

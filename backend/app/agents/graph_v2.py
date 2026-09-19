@@ -48,6 +48,7 @@ class AgentState(TypedDict, total=False):
     insight: str
     dashboard_config: dict
     dashboard_url: str | None
+    dashboard_metabase_id: int | None
     report_status: dict
     final_response: str
     error: str | None
@@ -305,6 +306,11 @@ async def node_dashboard(state: AgentState) -> AgentState:
         )
         state["dashboard_config"] = result.get("config")
         state["dashboard_url"] = result.get("embed_url")
+        state["dashboard_metabase_id"] = (
+            result.get("metabase_dashboard_id")
+            or result.get("dashboard_id")
+            or result.get("id")
+        )
 
         if not result.get("success"):
             log_warning(f"Dashboard build failed: {result.get('error')}")
