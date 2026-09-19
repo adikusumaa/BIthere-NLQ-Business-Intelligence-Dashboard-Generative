@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 TYPE_MAP = {
     "postgresql": {
         "integer": "INTEGER",
+        "bigint": "BIGINT",         # ← tambah
         "float": "NUMERIC",
         "boolean": "BOOLEAN",
         "timestamp": "TIMESTAMPTZ",
@@ -18,6 +19,7 @@ TYPE_MAP = {
     },
     "duckdb": {
         "integer": "INTEGER",
+        "bigint": "BIGINT",         # ← tambah
         "float": "DOUBLE",
         "boolean": "BOOLEAN",
         "timestamp": "TIMESTAMP",
@@ -25,6 +27,7 @@ TYPE_MAP = {
     },
     "mysql": {
         "integer": "INT",
+        "bigint": "BIGINT",         # ← tambah
         "float": "DECIMAL(18,4)",
         "boolean": "TINYINT(1)",
         "timestamp": "DATETIME",
@@ -32,6 +35,7 @@ TYPE_MAP = {
     },
     "sqlite": {
         "integer": "INTEGER",
+        "bigint": "INTEGER",        # ← tambah
         "float": "REAL",
         "boolean": "INTEGER",
         "timestamp": "TEXT",

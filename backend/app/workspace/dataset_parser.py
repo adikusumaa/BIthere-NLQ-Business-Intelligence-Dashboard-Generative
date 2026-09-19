@@ -2,6 +2,7 @@
 Dataset parser: sniff delimiter, detect encoding, preview rows,
 and infer column types for CSV / Excel / Parquet.
 """
+import re
 
 import csv
 import os
@@ -75,24 +76,44 @@ def preview(file_path: str, n: int = 100) -> Dict[str, Any]:
 def _infer_type(series: pd.Series) -> str:
     """Infer a coarse type name from a pandas Series."""
     if pd.api.types.is_integer_dtype(series):
+        non_null = series.dropna()
+        if len(non_null) > 0:
+            try:
+                max_abs = non_null.abs().max()
+                if max_abs > 2_000_000_000:
+                    return "bigint"
+            except Exception:
+                pass
         return "integer"
+
     if pd.api.types.is_float_dtype(series):
         return "float"
+
     if pd.api.types.is_bool_dtype(series):
         return "boolean"
+
     if pd.api.types.is_datetime64_any_dtype(series):
         return "timestamp"
 
     non_null = series.dropna()
     if len(non_null) > 0:
-        unique_vals = {str(v).lower() for v in non_null.unique()}
-        if unique_vals.issubset({"true", "false", "yes", "no"}):
+        # Only treat as boolean if values are actual Python bools (True/False)
+        sample_values = non_null.head(50).tolist()
+        if all(isinstance(v, bool) for v in sample_values):
             return "boolean"
-        try:
-            pd.to_datetime(non_null.head(50), errors="raise")
-            return "timestamp"
-        except Exception:
-            pass
+
+        # ISO 8601 timestamp detection (strict)
+        sample_str = non_null.head(50).astype(str)
+        iso_pattern = re.compile(
+            r"^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?"
+        )
+        if all(iso_pattern.match(v) for v in sample_str):
+            try:
+                pd.to_datetime(sample_str, errors="raise")
+                return "timestamp"
+            except Exception:
+                pass
+
     return "text"
 
 

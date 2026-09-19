@@ -1,5 +1,6 @@
 """
 Apply / rollback DDL against a workspace data source, and bulk insert data.
+Fast path uses PostgreSQL COPY protocol via asyncpg.copy_records_to_table().
 """
 
 import math
@@ -31,7 +32,6 @@ def _read_full_dataframe(file_path: str) -> pd.DataFrame:
 
 
 def _quote_value(value: Any, sql_type: str, dialect: str) -> str:
-    """Convert a Python value to a safe SQL literal."""
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return "NULL"
     if isinstance(value, bool):
@@ -60,8 +60,7 @@ async def apply_ddl(
 ) -> bool:
     """
     Execute CREATE TABLE (and indexes).
-    Optionally drop the table first.
-    For PostgreSQL, uses CASCADE to handle FK dependencies.
+    Optionally drop the table first. Uses CASCADE for PostgreSQL.
     """
     try:
         if drop_if_exists and table_name:
@@ -88,22 +87,89 @@ async def bulk_insert(
     table_name: str,
     file_path: str,
     columns_resolved: List[Dict[str, Any]],
-    batch_size: int = 1000,
+    batch_size: int = 5000,
 ) -> int:
     """
     Bulk-insert data from a file into the target table.
-    Returns number of rows inserted.
+
+    Hybrid strategy:
+      - PostgreSQL  -> use COPY protocol (asyncpg.copy_records_to_table) ~50k rows/s
+      - Fallback    -> INSERT VALUES batch (works for duckdb / sqlite / mysql)
     """
     df = _read_full_dataframe(file_path)
     dialect = connector.get_dialect()
 
-    name_map = {r["original_name"]: r for r in columns_resolved}
-    target_cols = [r["sql_name"] for r in columns_resolved if r["original_name"] in df.columns]
-    source_cols = [r["original_name"] for r in columns_resolved if r["original_name"] in df.columns]
+    target_cols: List[str] = []
+    source_cols: List[str] = []
+    type_by_src: Dict[str, str] = {}
+
+    for r in columns_resolved:
+        if r["original_name"] in df.columns:
+            target_cols.append(r["sql_name"])
+            source_cols.append(r["original_name"])
+            type_by_src[r["original_name"]] = r.get("sql_type", "TEXT")
 
     if not target_cols:
         raise ExecutorError("No matching columns between file and schema")
 
+    total = len(df)
+    logger.info(
+        f"[PROCESS] Bulk insert starting: {total} rows into {table_name} ({dialect})"
+    )
+
+    # --- PostgreSQL COPY fast path ---
+    if dialect == "postgresql" and hasattr(connector, "pool") and connector.pool:
+        try:
+            return await _copy_postgres(
+                connector, table_name, df, source_cols, target_cols
+            )
+        except Exception as exc:
+            logger.warning(f"[WARNING] COPY path failed, falling back to INSERT: {exc}")
+
+    return await _insert_values(
+        connector, table_name, df, source_cols, target_cols, type_by_src, batch_size
+    )
+
+
+async def _copy_postgres(
+    connector: BaseConnector,
+    table_name: str,
+    df: pd.DataFrame,
+    source_cols: List[str],
+    target_cols: List[str],
+) -> int:
+    """Fast path: asyncpg.copy_records_to_table()."""
+    sub = df[source_cols]
+    records: List[tuple] = []
+    for row in sub.itertuples(index=False, name=None):
+        cleaned = tuple(
+            None if (v is None or (isinstance(v, float) and v != v)) else v
+            for v in row
+        )
+        records.append(cleaned)
+
+    async with connector.pool.acquire() as connection:
+        await connection.copy_records_to_table(
+            table_name,
+            records=records,
+            columns=target_cols,
+        )
+
+    logger.info(f"[SUCCESS] COPY insert complete: {len(records)} rows into {table_name}")
+    return len(records)
+
+
+async def _insert_values(
+    connector: BaseConnector,
+    table_name: str,
+    df: pd.DataFrame,
+    source_cols: List[str],
+    target_cols: List[str],
+    type_by_src: Dict[str, str],
+    batch_size: int,
+) -> int:
+    """Generic INSERT VALUES path (slower, works everywhere)."""
+    dialect = connector.get_dialect()
     quoted_table = _quote_identifier(table_name, dialect)
     quoted_cols = ", ".join(_quote_identifier(c, dialect) for c in target_cols)
 
@@ -116,7 +182,7 @@ async def bulk_insert(
         for _, row in chunk.iterrows():
             vals = []
             for src in source_cols:
-                sql_type = name_map[src]["sql_type"]
+                sql_type = type_by_src.get(src, "TEXT")
                 vals.append(_quote_value(row[src], sql_type, dialect))
             rows_sql.append("(" + ", ".join(vals) + ")")
 
@@ -141,9 +207,11 @@ async def rollback(connector: BaseConnector, table_name: str) -> bool:
     """Drop the table to undo an applied schema."""
     dialect = connector.get_dialect()
     try:
-        await connector.execute_query(
-            f"DROP TABLE IF EXISTS {_quote_identifier(table_name, dialect)}"
-        )
+        quoted = _quote_identifier(table_name, dialect)
+        if dialect == "postgresql":
+            await connector.execute_query(f"DROP TABLE IF EXISTS {quoted} CASCADE")
+        else:
+            await connector.execute_query(f"DROP TABLE IF EXISTS {quoted}")
         logger.info(f"[SUCCESS] Rolled back table: {table_name}")
         return True
     except Exception as exc:
