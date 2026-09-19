@@ -10,6 +10,11 @@ from app.api.routes import (
     chat,
     chat_workspace,
     dashboard,
+    dashboard_manual,
+    dashboard_patch,
+    dashboard_state,
+    dashboard_undo,
+    dashboard_version,
     data_sources,
     datasets,
     integrations,
@@ -51,6 +56,11 @@ app.include_router(chat.router)
 app.include_router(dashboard.router)
 app.include_router(report.router)
 app.include_router(users.router)
+app.include_router(dashboard_state.router)
+app.include_router(dashboard_patch.router)
+app.include_router(dashboard_version.router)
+app.include_router(dashboard_undo.router)
+app.include_router(dashboard_manual.router)
 
 
 @app.get("/", tags=["Health"])
