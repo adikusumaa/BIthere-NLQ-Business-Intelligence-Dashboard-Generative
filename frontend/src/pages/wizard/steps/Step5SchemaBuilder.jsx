@@ -3,6 +3,7 @@ import Editor from "@monaco-editor/react";
 import { api } from "../../../services/api";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useWizardStore } from "../../../store/wizardStore";
+import ProgressBar from "../../../components/ProgressBar";
 
 export default function Step5SchemaBuilder({ onNext, onBack }) {
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
@@ -18,15 +19,18 @@ export default function Step5SchemaBuilder({ onNext, onBack }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [loadingDatasets, setLoadingDatasets] = useState(true);
+  const [progress, setProgress] = useState({
+    percent: 0,
+    message: "",
+    visible: false,
+  });
 
-  // Fetch datasets directly from backend
   useEffect(() => {
     (async () => {
       setLoadingDatasets(true);
       try {
         const list = await api.listDatasets(activeWorkspace.id);
         setDatasets(list || []);
-        // Auto-pick the most recent dataset that hasn't had schema applied yet
         const candidate =
           list.find((d) => !d.schema_applied) || list[0] || null;
         if (candidate) setDatasetId(candidate.id);
@@ -63,6 +67,28 @@ export default function Step5SchemaBuilder({ onNext, onBack }) {
   const handleApply = async () => {
     setError(null);
     setApplying(true);
+    setProgress({ percent: 0, message: "Starting...", visible: true });
+
+    const pollKey = `${activeWorkspace.id}:apply`;
+    let stopped = false;
+
+    const poll = async () => {
+      while (!stopped) {
+        try {
+          const job = await api.getProgress(pollKey);
+          if (job && job.status === "running") {
+            setProgress({
+              percent: job.percent || 0,
+              message: job.message || "Processing...",
+              visible: true,
+            });
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    };
+    poll();
+
     try {
       const res = await api.applySchema(activeWorkspace.id, {
         dataset_id: datasetId,
@@ -72,9 +98,13 @@ export default function Step5SchemaBuilder({ onNext, onBack }) {
         drop_if_exists: true,
       });
       setResult(res);
+      setProgress({ percent: 100, message: "Done", visible: true });
+      setTimeout(() => setProgress((p) => ({ ...p, visible: false })), 1500);
     } catch (err) {
       setError(err.message);
+      setProgress((p) => ({ ...p, visible: false }));
     } finally {
+      stopped = true;
       setApplying(false);
     }
   };
@@ -149,8 +179,16 @@ export default function Step5SchemaBuilder({ onNext, onBack }) {
         </button>
       </div>
 
+      <ProgressBar
+        percent={progress.percent}
+        message={progress.message}
+        visible={progress.visible}
+      />
+
       {error && (
-        <div style={{ color: "#f87171", marginBottom: 12, fontSize: 13 }}>{error}</div>
+        <div style={{ color: "#f87171", marginBottom: 12, fontSize: 13 }}>
+          {error}
+        </div>
       )}
 
       {result && (

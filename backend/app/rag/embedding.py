@@ -1,6 +1,6 @@
 """
 Embedding client using Google Generative Language REST API v1.
-Supports workspace-scoped API keys and per-workspace Redis cache prefix.
+Includes Redis caching and exponential backoff for 429 rate limits.
 """
 
 import asyncio
@@ -38,15 +38,39 @@ def _call_embedding_api(text: str, api_key: str) -> List[float]:
     return data["embedding"]["values"]
 
 
+async def _call_with_retry(
+    text: str,
+    api_key: str,
+    max_retries: int = 5,
+) -> List[float]:
+    """Call embedding API with exponential backoff for 429 / 5xx."""
+    delay = 5
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            return await asyncio.to_thread(_call_embedding_api, text, api_key)
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else 0
+            last_error = exc
+            if status in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
+                logger.warning(
+                    f"[WARNING] Embedding {status} error, waiting {delay}s "
+                    f"(attempt {attempt + 1}/{max_retries})"
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 60)
+                continue
+            raise
+    if last_error:
+        raise last_error
+    raise RuntimeError("Embedding retries exhausted")
+
+
 async def embed_text(
     text: str,
     api_key: Optional[str] = None,
     redis_prefix: str = "",
 ) -> List[float]:
-    """
-    Get embedding for text with Redis caching.
-    If api_key is None, falls back to platform-level GOOGLE_API_KEY (v1 behavior).
-    """
     key = api_key or settings.GOOGLE_API_KEY
     if not key:
         raise ValueError("No Google API key available for embedding")
@@ -59,7 +83,7 @@ async def embed_text(
         return cached
 
     logger.info(f"[PROCESS] Calling embedding API for text: {text[:50]}...")
-    embedding = await asyncio.to_thread(_call_embedding_api, text, key)
+    embedding = await _call_with_retry(text, key)
 
     await cache.set(cache_key, embedding, ttl=settings.CACHE_EMBEDDING_TTL)
     logger.info("[SUCCESS] Embedding generated and cached")
@@ -71,7 +95,6 @@ async def embed_batch(
     api_key: Optional[str] = None,
     redis_prefix: str = "",
 ) -> List[List[float]]:
-    """Embed a batch of texts sequentially (Google v1 API has no batch)."""
     results = []
     for t in texts:
         results.append(await embed_text(t, api_key=api_key, redis_prefix=redis_prefix))

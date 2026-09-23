@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../../../services/api";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useWizardStore } from "../../../store/wizardStore";
+import ProgressBar from "../../../components/ProgressBar";
 
 export default function Step6KnowledgeBase({ onBack }) {
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
@@ -15,6 +16,11 @@ export default function Step6KnowledgeBase({ onBack }) {
   const [reingesting, setReingesting] = useState(false);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
+  const [progress, setProgress] = useState({
+    percent: 0,
+    message: "",
+    visible: false,
+  });
 
   const handleAddTerm = async () => {
     if (!term || !definition) return;
@@ -36,12 +42,40 @@ export default function Step6KnowledgeBase({ onBack }) {
     setError(null);
     setReingesting(true);
     setStatus(null);
+    setProgress({ percent: 0, message: "Starting...", visible: true });
+
+    const pollKey = `${activeWorkspace.id}:reingest`;
+    let stopped = false;
+
+    const poll = async () => {
+      while (!stopped) {
+        try {
+          const job = await api.getProgress(pollKey);
+          if (job && job.status === "running") {
+            setProgress({
+              percent: job.percent || 0,
+              message: job.message || "Processing...",
+              visible: true,
+            });
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    };
+    poll();
+
     try {
       const res = await api.reingest(activeWorkspace.id);
-      setStatus(`Ingested: schema=${res.schema.vectors}, glossary=${res.glossary.vectors}`);
+      setStatus(
+        `Ingested: schema=${res.schema.vectors}, glossary=${res.glossary.vectors}`
+      );
+      setProgress({ percent: 100, message: "Done", visible: true });
+      setTimeout(() => setProgress((p) => ({ ...p, visible: false })), 1500);
     } catch (err) {
       setError(err.message);
+      setProgress((p) => ({ ...p, visible: false }));
     } finally {
+      stopped = true;
       setReingesting(false);
     }
   };
@@ -52,9 +86,8 @@ export default function Step6KnowledgeBase({ onBack }) {
       await saveStep(activeWorkspace.id, 6, {});
       await complete(activeWorkspace.id);
 
-      // Force reload workspaces from backend so setup_completed=true
-      await useWorkspaceStore.getState().loadWorkspaces();
-
+      const refreshWorkspace = useWorkspaceStore.getState().refreshWorkspace;
+      await refreshWorkspace(activeWorkspace.id);
       resetStore();
       window.location.href = "/chat";
     } catch (err) {
@@ -70,7 +103,12 @@ export default function Step6KnowledgeBase({ onBack }) {
       </p>
 
       <label style={labelStyle}>Term</label>
-      <input value={term} onChange={(e) => setTerm(e.target.value)} style={inputStyle} placeholder="e.g. chargeback" />
+      <input
+        value={term}
+        onChange={(e) => setTerm(e.target.value)}
+        style={inputStyle}
+        placeholder="e.g. chargeback"
+      />
 
       <label style={labelStyle}>Definition</label>
       <textarea
@@ -82,26 +120,56 @@ export default function Step6KnowledgeBase({ onBack }) {
       />
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button onClick={handleAddTerm} disabled={adding || !term || !definition} style={btnStyle("#6b7280")}>
+        <button
+          onClick={handleAddTerm}
+          disabled={adding || !term || !definition}
+          style={btnStyle("#6b7280")}
+        >
           {adding ? "..." : "Add Term"}
         </button>
-        <button onClick={handleReingest} disabled={reingesting} style={btnStyle("#10b981")}>
+        <button
+          onClick={handleReingest}
+          disabled={reingesting}
+          style={btnStyle("#10b981")}
+        >
           {reingesting ? "..." : "Re-ingest to Pinecone"}
         </button>
       </div>
 
-      {status && <div style={{ color: "#10b981", marginTop: 12, fontSize: 13 }}>{status}</div>}
-      {error && <div style={{ color: "#f87171", marginTop: 12, fontSize: 13 }}>{error}</div>}
+      <ProgressBar
+        percent={progress.percent}
+        message={progress.message}
+        visible={progress.visible}
+      />
+
+      {status && (
+        <div style={{ color: "#10b981", marginTop: 12, fontSize: 13 }}>
+          {status}
+        </div>
+      )}
+      {error && (
+        <div style={{ color: "#f87171", marginTop: 12, fontSize: 13 }}>
+          {error}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 24 }}>
         <button onClick={onBack} style={btnStyle("#6b7280")}>Back</button>
-        <button onClick={handleFinish} style={btnStyle("#3b82f6")}>Finish & Go to Chat</button>
+        <button onClick={handleFinish} style={btnStyle("#3b82f6")}>
+          Finish & Go to Chat
+        </button>
       </div>
     </div>
   );
 }
 
-const labelStyle = { display: "block", fontSize: 13, marginBottom: 6, marginTop: 12 };
+const labelStyle = {
+  display: "block",
+  fontSize: 13,
+  marginBottom: 6,
+  marginTop: 12,
+};
+
 const inputStyle = {
   width: "100%",
   padding: "8px 12px",
@@ -111,6 +179,15 @@ const inputStyle = {
   color: "inherit",
   fontSize: 13,
 };
+
 function btnStyle(bg) {
-  return { padding: "8px 16px", borderRadius: 6, border: "none", background: bg, color: "white", fontSize: 13, cursor: "pointer" };
+  return {
+    padding: "8px 16px",
+    borderRadius: 6,
+    border: "none",
+    background: bg,
+    color: "white",
+    fontSize: 13,
+    cursor: "pointer",
+  };
 }

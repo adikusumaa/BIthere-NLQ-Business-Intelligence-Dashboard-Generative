@@ -210,4 +210,5 @@ export const api = {
     request("POST", `/api/workspaces/${wsId}/dashboards/import`, {
       body: { metabase_dashboard_id },
     }),
+  getProgress: (key) => request("GET", `/api/progress/${key}`),
 };

@@ -21,6 +21,7 @@ from app.api.routes import (
     datasets,
     integrations,
     knowledge_base,
+    progress,
     report,
     schema_builder,
     users,
@@ -65,7 +66,7 @@ app.include_router(dashboard_version.router)
 app.include_router(dashboard_undo.router)
 app.include_router(dashboard_manual.router)
 app.include_router(dashboard_import.router)
-
+app.include_router(progress.router)
 
 async def ensure_bootstrap_admin() -> None:
     """

@@ -16,6 +16,7 @@ from app.workspace import datasets as datasets_mod
 from app.workspace import secrets as secret_store
 from app.workspace.secrets import SecretNotFoundError
 from app.workspace.context import resolve_workspace
+from app.core.progress import start_job, update_job, finish_job, fail_job
 
 
 router = APIRouter(
@@ -161,11 +162,11 @@ async def reingest(
     workspace_id: str,
     user: dict = Depends(get_current_user),
 ) -> dict:
-    """
-    Rebuild Pinecone namespaces (schema + glossary) for the workspace.
-    Requires Pinecone and Google keys configured.
-    """
     keys = await _require_rag_keys(workspace_id)
+
+    job_key = f"{workspace_id}:reingest"
+    start_job(job_key, label="Rebuild knowledge base")
+    update_job(job_key, current=0, total=100, message="Loading schema")
 
     try:
         connector = await ds_mod.get_workspace_connector(workspace_id)
@@ -175,7 +176,10 @@ async def reingest(
         finally:
             await connector.disconnect()
     except Exception as exc:
+        fail_job(job_key, str(exc))
         raise HTTPException(status_code=400, detail=f"Cannot load schema: {exc}")
+
+    update_job(job_key, current=30, total=100, message="Embedding schema")
 
     schema_result = await rag_schema.ingest_schema(
         workspace_id=workspace_id,
@@ -187,6 +191,8 @@ async def reingest(
         delete_existing=True,
     )
 
+    update_job(job_key, current=70, total=100, message="Embedding glossary")
+
     glossary_result = await rag_glossary.ingest_glossary(
         workspace_id=workspace_id,
         pinecone_api_key=keys["pinecone_key"],
@@ -196,8 +202,12 @@ async def reingest(
         delete_existing=True,
     )
 
-    return {
+    update_job(job_key, current=100, total=100, message="Done")
+
+    result = {
         "schema": schema_result,
         "glossary": glossary_result,
         "namespace": keys["namespace"],
     }
+    finish_job(job_key, result)
+    return result

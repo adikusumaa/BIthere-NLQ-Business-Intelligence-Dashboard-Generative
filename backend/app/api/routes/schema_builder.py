@@ -16,6 +16,7 @@ from app.workspace.datasets import DatasetNotFoundError, DatasetStoreError
 from app.workspace.schema_builder import ddl_generator, executor
 from app.workspace.schema_builder.ddl_generator import DDLGenerationError
 from app.workspace.schema_builder.executor import ExecutorError
+from app.core.progress import start_job, update_job, finish_job, fail_job
 
 
 router = APIRouter(
@@ -94,7 +95,6 @@ async def apply_schema(
     body: ApplySchemaRequest,
     user: dict = Depends(get_current_user),
 ) -> dict:
-    """Execute DDL then bulk-insert data from the dataset file."""
     try:
         dataset = await datasets_mod.get_dataset(body.dataset_id)
     except DatasetNotFoundError:
@@ -105,8 +105,12 @@ async def apply_schema(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"No data source: {exc}")
 
+    job_key = f"{workspace_id}:apply"
+    start_job(job_key, label="Apply schema")
+
     try:
         await connector.connect()
+        update_job(job_key, current=1, total=100, message="Creating table")
 
         await executor.apply_ddl(
             connector,
@@ -115,12 +119,15 @@ async def apply_schema(
             table_name=body.table_name,
         )
 
+        update_job(job_key, current=5, total=100, message="Inserting data")
+
         inserted = await executor.bulk_insert(
             connector,
             body.table_name,
             dataset["file_path"],
             body.columns_resolved,
             batch_size=body.batch_size,
+            progress_key=job_key,
         )
 
         schema_record = await datasets_mod.create_schema(
@@ -141,12 +148,15 @@ async def apply_schema(
             workspace_id, user["id"], schema_record["id"], body.table_name
         )
 
+        finish_job(job_key, {"rows_inserted": inserted, "table_name": body.table_name})
+
         return {
             "schema_id": schema_record["id"],
             "table_name": body.table_name,
             "rows_inserted": inserted,
         }
     except (ExecutorError, DatasetStoreError) as exc:
+        fail_job(job_key, str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
         await connector.disconnect()

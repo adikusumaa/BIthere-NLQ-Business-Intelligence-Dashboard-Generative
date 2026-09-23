@@ -169,7 +169,10 @@ async def bulk_insert(
     file_path: str,
     columns_resolved: List[Dict[str, Any]],
     batch_size: int = 5000,
+    progress_key: Optional[str] = None,
 ) -> int:
+    from app.core.progress import update_job
+
     df = _read_full_dataframe(file_path)
     dialect = connector.get_dialect()
 
@@ -187,24 +190,30 @@ async def bulk_insert(
         raise ExecutorError("No matching columns between file and schema")
 
     df_clean = _preprocess_dataframe(df, source_cols, type_by_src)
-
     df_clean.columns = target_cols
 
     total = len(df_clean)
+    if progress_key:
+        update_job(progress_key, current=0, total=total, message="Preparing data")
+
     logger.info(
         f"[PROCESS] Bulk insert starting: {total} rows into {table_name} ({dialect})"
     )
 
     if dialect == "postgresql" and hasattr(connector, "pool") and connector.pool:
         try:
-            return await _copy_postgres(connector, table_name, df_clean, target_cols)
+            return await _copy_postgres(
+                connector, table_name, df_clean, target_cols, progress_key
+            )
         except Exception as exc:
             logger.warning(
                 f"[WARNING] COPY path failed ({type(exc).__name__}): {exc!r}"
             )
             logger.warning(f"[WARNING] Traceback:\n{traceback.format_exc()}")
 
-    return await _insert_values(connector, table_name, df_clean, target_cols, batch_size)
+    return await _insert_values(
+        connector, table_name, df_clean, target_cols, batch_size, progress_key
+    )
 
 
 async def _copy_postgres(
@@ -212,8 +221,11 @@ async def _copy_postgres(
     table_name: str,
     df_clean: pd.DataFrame,
     target_cols: List[str],
+    progress_key: Optional[str] = None,
     chunk_size: int = 100000,
 ) -> int:
+    from app.core.progress import update_job
+
     records = _to_records(df_clean, target_cols)
     total = len(records)
 
@@ -234,8 +246,64 @@ async def _copy_postgres(
             )
             inserted += len(chunk)
             logger.info(f"[PROCESS] COPY batch: {inserted}/{total}")
+            if progress_key:
+                update_job(
+                    progress_key,
+                    current=inserted,
+                    total=total,
+                    message="Inserting rows",
+                )
 
     logger.info(f"[SUCCESS] COPY insert complete: {inserted} rows into {table_name}")
+    return inserted
+
+
+async def _insert_values(
+    connector: BaseConnector,
+    table_name: str,
+    df_clean: pd.DataFrame,
+    target_cols: List[str],
+    batch_size: int,
+    progress_key: Optional[str] = None,
+) -> int:
+    from app.core.progress import update_job
+
+    dialect = connector.get_dialect()
+    quoted_table = _quote_identifier(table_name, dialect)
+    quoted_cols = ", ".join(_quote_identifier(c, dialect) for c in target_cols)
+
+    records = _to_records(df_clean, target_cols)
+    total = len(records)
+    inserted = 0
+
+    for start in range(0, total, batch_size):
+        chunk = records[start:start + batch_size]
+        rows_sql = []
+        for row in chunk:
+            vals = [_quote_value(v, "text", dialect) for v in row]
+            rows_sql.append("(" + ", ".join(vals) + ")")
+
+        if not rows_sql:
+            continue
+
+        stmt = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES " + ", ".join(rows_sql)
+
+        try:
+            await connector.execute_query(stmt)
+            inserted += len(rows_sql)
+            logger.info(f"[PROCESS] Inserted batch: {inserted}/{total}")
+            if progress_key:
+                update_job(
+                    progress_key,
+                    current=inserted,
+                    total=total,
+                    message="Inserting rows",
+                )
+        except Exception as exc:
+            logger.error(f"[ERROR] Insert failed at row {start}: {exc}")
+            raise ExecutorError(f"Insert failed at row {start}: {exc}") from exc
+
+    logger.info(f"[SUCCESS] Bulk insert complete: {inserted} rows into {table_name}")
     return inserted
 
 async def _insert_values(
