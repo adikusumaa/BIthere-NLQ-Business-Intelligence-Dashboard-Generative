@@ -1,18 +1,12 @@
 """
 Apply / rollback DDL against a workspace data source, and bulk insert data.
 Fast path uses PostgreSQL COPY protocol via asyncpg.copy_records_to_table().
-
-Robust preprocessing:
-  - auto-detects numeric/currency columns from actual data
-  - auto-detects timestamp columns and converts strings
-  - converts NaN / NaT / pd.NaT to Python None (vectorized)
-  - localizes tz-naive timestamps to UTC
-  - does NOT depend on frontend-supplied dtype
 """
 
 import math
 import os
 import re
+import traceback
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -67,7 +61,6 @@ def _quote_identifier(name: str, dialect: str) -> str:
 
 
 def _looks_numeric(sample: pd.Series) -> bool:
-    """Return True if the sample can be parsed as numeric."""
     if len(sample) == 0:
         return False
     s = sample.dropna().astype(str).head(30)
@@ -82,7 +75,6 @@ def _looks_numeric(sample: pd.Series) -> bool:
 
 
 def _looks_timestamp(sample: pd.Series) -> bool:
-    """Return True if the sample looks like ISO 8601 timestamp."""
     if len(sample) == 0:
         return False
     s = sample.dropna().astype(str).head(30)
@@ -103,18 +95,11 @@ def _preprocess_dataframe(
     source_cols: List[str],
     type_by_src: Dict[str, str],
 ) -> pd.DataFrame:
-    """
-    Normalize values before insert:
-      1. Numeric columns -> strip $, , and coerce to numeric
-      2. Timestamp columns -> parse to pd.Timestamp
-      3. Everything else stays as-is
-    """
     sub = df[source_cols].copy()
 
     for col in source_cols:
         hint = type_by_src.get(col, "text").lower()
 
-        # --- Numeric columns ---
         is_numeric_hint = hint in ("float", "integer", "bigint")
         if is_numeric_hint or _looks_numeric(sub[col]):
             cleaned = (
@@ -126,7 +111,6 @@ def _preprocess_dataframe(
             sub[col] = pd.to_numeric(cleaned, errors="coerce")
             continue
 
-        # --- Timestamp columns ---
         if hint == "timestamp" or _looks_timestamp(sub[col]):
             sub[col] = pd.to_datetime(sub[col], errors="coerce")
             continue
@@ -135,12 +119,6 @@ def _preprocess_dataframe(
 
 
 def _to_records(df_clean: pd.DataFrame, target_cols: List[str]) -> List[tuple]:
-    """
-    Convert DataFrame to list of tuples.
-      - NaN / NaT -> None
-      - tz-naive pd.Timestamp -> UTC-localized Python datetime
-      - other values stay native
-    """
     normalized = df_clean[target_cols].astype(object).where(
         pd.notna(df_clean[target_cols]), None
     )
@@ -165,7 +143,6 @@ async def apply_ddl(
     drop_if_exists: bool = False,
     table_name: Optional[str] = None,
 ) -> bool:
-    """Execute CREATE TABLE (and indexes). Drops first if requested."""
     try:
         if drop_if_exists and table_name:
             dialect = connector.get_dialect()
@@ -193,13 +170,6 @@ async def bulk_insert(
     columns_resolved: List[Dict[str, Any]],
     batch_size: int = 5000,
 ) -> int:
-    """
-    Bulk-insert data from file into table.
-
-    Strategy:
-      - PostgreSQL + asyncpg pool -> COPY protocol (fast)
-      - Otherwise -> INSERT VALUES batch (portable)
-    """
     df = _read_full_dataframe(file_path)
     dialect = connector.get_dialect()
 
@@ -218,17 +188,21 @@ async def bulk_insert(
 
     df_clean = _preprocess_dataframe(df, source_cols, type_by_src)
 
+    df_clean.columns = target_cols
+
     total = len(df_clean)
     logger.info(
         f"[PROCESS] Bulk insert starting: {total} rows into {table_name} ({dialect})"
     )
 
-    # PostgreSQL COPY fast path
     if dialect == "postgresql" and hasattr(connector, "pool") and connector.pool:
         try:
             return await _copy_postgres(connector, table_name, df_clean, target_cols)
         except Exception as exc:
-            logger.warning(f"[WARNING] COPY path failed, falling back to INSERT: {exc}")
+            logger.warning(
+                f"[WARNING] COPY path failed ({type(exc).__name__}): {exc!r}"
+            )
+            logger.warning(f"[WARNING] Traceback:\n{traceback.format_exc()}")
 
     return await _insert_values(connector, table_name, df_clean, target_cols, batch_size)
 
@@ -238,20 +212,31 @@ async def _copy_postgres(
     table_name: str,
     df_clean: pd.DataFrame,
     target_cols: List[str],
+    chunk_size: int = 100000,
 ) -> int:
-    """Fast path: asyncpg.copy_records_to_table()."""
     records = _to_records(df_clean, target_cols)
+    total = len(records)
 
-    async with connector.pool.acquire() as connection:
-        await connection.copy_records_to_table(
-            table_name,
-            records=records,
-            columns=target_cols,
+    if records:
+        logger.info(
+            f"[PROCESS] COPY prep: {total} records, "
+            f"{len(target_cols)} cols, chunk_size={chunk_size}"
         )
 
-    logger.info(f"[SUCCESS] COPY insert complete: {len(records)} rows into {table_name}")
-    return len(records)
+    inserted = 0
+    async with connector.pool.acquire() as connection:
+        for start in range(0, total, chunk_size):
+            chunk = records[start:start + chunk_size]
+            await connection.copy_records_to_table(
+                table_name,
+                records=chunk,
+                columns=target_cols,
+            )
+            inserted += len(chunk)
+            logger.info(f"[PROCESS] COPY batch: {inserted}/{total}")
 
+    logger.info(f"[SUCCESS] COPY insert complete: {inserted} rows into {table_name}")
+    return inserted
 
 async def _insert_values(
     connector: BaseConnector,
@@ -260,7 +245,6 @@ async def _insert_values(
     target_cols: List[str],
     batch_size: int,
 ) -> int:
-    """Generic INSERT VALUES path (fallback for COPY failure or non-Postgres)."""
     dialect = connector.get_dialect()
     quoted_table = _quote_identifier(table_name, dialect)
     quoted_cols = ", ".join(_quote_identifier(c, dialect) for c in target_cols)
@@ -294,7 +278,6 @@ async def _insert_values(
 
 
 async def rollback(connector: BaseConnector, table_name: str) -> bool:
-    """Drop the table to undo an applied schema."""
     dialect = connector.get_dialect()
     try:
         quoted = _quote_identifier(table_name, dialect)

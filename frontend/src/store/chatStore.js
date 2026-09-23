@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { v4 as uuidFallback } from "./uuidFallback";
 
 import { streamChat } from "../services/sse";
-import { useAuthStore } from "./authStore";
 import { useWorkspaceStore } from "./workspaceStore";
 
 export const useChatStore = create((set, get) => ({
@@ -10,6 +9,7 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   isStreaming: false,
   activeDashboardUrl: null,
+  activeDashboardMetabaseId: null,
   error: null,
 
   ensureSession: () => {
@@ -29,6 +29,7 @@ export const useChatStore = create((set, get) => ({
       messages: [],
       isStreaming: false,
       activeDashboardUrl: null,
+      activeDashboardMetabaseId: null,
       error: null,
     }),
 
@@ -37,7 +38,6 @@ export const useChatStore = create((set, get) => ({
     if (!trimmed) return;
     if (get().isStreaming) return;
 
-    const token = useAuthStore.getState().getToken?.();
     const workspaceId = useWorkspaceStore.getState().activeWorkspace?.id;
 
     if (!workspaceId) {
@@ -87,6 +87,7 @@ export const useChatStore = create((set, get) => ({
               break;
             case "dashboard":
               if (data?.url) set({ activeDashboardUrl: data.url });
+              if (data?.metabase_id) set({ activeDashboardMetabaseId: data.metabase_id });
               break;
             case "error":
               set({ error: data?.message || "Unknown error" });

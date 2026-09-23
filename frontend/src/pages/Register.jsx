@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { useAuthStore } from "../store/authStore";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const styles = {
   page: {
@@ -76,6 +76,15 @@ const styles = {
     marginBottom: "16px",
     border: "1px solid rgba(255, 59, 48, 0.2)",
   },
+  success: {
+    background: "rgba(52, 199, 89, 0.08)",
+    color: "var(--ios-green)",
+    padding: "12px 14px",
+    borderRadius: "var(--radius-md)",
+    fontSize: "14px",
+    marginBottom: "16px",
+    border: "1px solid rgba(52, 199, 89, 0.2)",
+  },
   submit: {
     width: "100%",
     padding: "16px",
@@ -92,7 +101,7 @@ const styles = {
     fontSize: "12px",
     color: "var(--ios-text-tertiary)",
   },
-  registerLink: {
+  loginLink: {
     display: "block",
     marginTop: "16px",
     textAlign: "center",
@@ -102,24 +111,45 @@ const styles = {
   },
 };
 
-export default function Login() {
+export default function Register() {
   const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError(null);
+    setSuccess(null);
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(email, password);
-      navigate("/chat");
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || `HTTP ${response.status}`);
+      }
+      setSuccess("Account created. Redirecting to login...");
+      setTimeout(() => navigate("/login"), 1500);
     } catch (err) {
-      setError(err.message || "Sign in failed. Please check your credentials.");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -132,11 +162,14 @@ export default function Login() {
           <div style={styles.logoMark}>
             <span style={styles.logoLetter}>B</span>
           </div>
-          <div style={styles.brand}>BIthere</div>
-          <div style={styles.tagline}>AI Business Intelligence Analyst</div>
+          <div style={styles.brand}>Create Account</div>
+          <div style={styles.tagline}>
+            Use the email your administrator invited
+          </div>
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
+        {success && <div style={styles.success}>{success}</div>}
 
         <form onSubmit={handleSubmit}>
           <div style={styles.fieldGroup}>
@@ -160,9 +193,23 @@ export default function Login() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Your password"
+              placeholder="At least 6 characters"
               required
-              autoComplete="current-password"
+              minLength={6}
+              autoComplete="new-password"
+            />
+          </div>
+
+          <div style={styles.fieldGroup}>
+            <label style={styles.label}>CONFIRM PASSWORD</label>
+            <input
+              className="ios-input"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat password"
+              required
+              autoComplete="new-password"
             />
           </div>
 
@@ -172,16 +219,16 @@ export default function Login() {
             disabled={loading}
             className="ios-btn"
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
 
-        <Link to="/register" style={styles.registerLink}>
-          Have an invite? Register here
+        <Link to="/login" style={styles.loginLink}>
+          Already have an account? Sign in
         </Link>
 
         <div style={styles.footer}>
-          Internal use only. Contact your administrator for access.
+          Registration is invite-only. Contact your administrator.
         </div>
       </div>
     </div>

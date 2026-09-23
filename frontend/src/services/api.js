@@ -1,8 +1,3 @@
-/**
- * Unified API client for BIthere v2.
- * Automatically injects Authorization and X-Workspace-ID headers.
- */
-
 import { supabase } from "./supabase";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
@@ -66,7 +61,6 @@ async function request(method, path, { body, workspaceId, raw } = {}) {
 }
 
 export const api = {
-  // Workspaces
   listWorkspaces: () => request("GET", "/api/workspaces"),
   createWorkspace: (payload) => request("POST", "/api/workspaces", { body: payload }),
   getWorkspace: (id) => request("GET", `/api/workspaces/${id}`),
@@ -79,7 +73,15 @@ export const api = {
   removeMember: (id, userId) =>
     request("DELETE", `/api/workspaces/${id}/members/${userId}`),
 
-  // Integrations
+  createWorkspaceInvite: (wsId, email, role) =>
+    request("POST", `/api/workspaces/${wsId}/invites`, {
+      body: { email, role },
+    }),
+  listWorkspaceInvites: (wsId) =>
+    request("GET", `/api/workspaces/${wsId}/invites`),
+  revokeWorkspaceInvite: (wsId, inviteId) =>
+    request("DELETE", `/api/workspaces/${wsId}/invites/${inviteId}`),
+
   listIntegrations: (wsId) => request("GET", `/api/integrations/${wsId}`),
   setIntegration: (wsId, service, value, metadata) =>
     request("POST", `/api/integrations/${wsId}/${service}`, {
@@ -94,7 +96,6 @@ export const api = {
   testAllIntegrations: (wsId) =>
     request("POST", `/api/integrations/${wsId}/test-all`),
 
-  // Data sources
   listDataSources: (wsId) =>
     request("GET", `/api/workspaces/${wsId}/data-sources`),
   addDataSource: (wsId, payload) =>
@@ -108,7 +109,6 @@ export const api = {
   deleteDataSource: (wsId, dsId) =>
     request("DELETE", `/api/workspaces/${wsId}/data-sources/${dsId}`),
 
-  // Datasets
   listDatasets: (wsId) => request("GET", `/api/workspaces/${wsId}/datasets`),
   getDataset: (wsId, dsId) =>
     request("GET", `/api/workspaces/${wsId}/datasets/${dsId}`),
@@ -126,7 +126,6 @@ export const api = {
     });
   },
 
-  // Schema builder
   generateDDL: (wsId, payload) =>
     request("POST", `/api/workspaces/${wsId}/schema-builder/generate-ddl`, {
       body: payload,
@@ -142,7 +141,6 @@ export const api = {
   getSchemaForDataset: (wsId, datasetId) =>
     request("GET", `/api/workspaces/${wsId}/schema-builder/${datasetId}`),
 
-  // Knowledge base
   getWorkspaceSchema: (wsId) =>
     request("GET", `/api/workspaces/${wsId}/knowledge-base/schema`),
   listGlossary: (wsId) =>
@@ -167,7 +165,6 @@ export const api = {
   reingest: (wsId) =>
     request("POST", `/api/workspaces/${wsId}/knowledge-base/reingest`),
 
-  // Wizard
   getWizardState: (wsId) =>
     request("GET", `/api/workspaces/${wsId}/wizard/state`),
   saveWizardStep: (wsId, step, data) =>
@@ -178,7 +175,7 @@ export const api = {
     request("POST", `/api/workspaces/${wsId}/wizard/complete`),
   resetWizard: (wsId) =>
     request("POST", `/api/workspaces/${wsId}/wizard/reset`),
-    // Dashboard editor (F-13)
+
   getDashboardState: (wsId, dashboardId) =>
     request("GET", `/api/workspaces/${wsId}/dashboards/${dashboardId}/state`),
   listDashboardVersions: (wsId, dashboardId) =>
@@ -195,18 +192,22 @@ export const api = {
     request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/patch/apply`, {
       body: { patch, instruction, base_version },
     }),
+  manualEditDashboard: (wsId, dashboardId, { patch, base_version, session_id }) =>
+    request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/manual-edit`, {
+      body: { patch, base_version, session_id },
+    }),
   rollbackDashboard: (wsId, dashboardId, { target_version, base_version }) =>
     request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/rollback`, {
       body: { target_version, base_version },
     }),
   diffDashboard: (wsId, dashboardId, v1, v2) =>
     request("GET", `/api/workspaces/${wsId}/dashboards/${dashboardId}/diff?v1=${v1}&v2=${v2}`),
-  manualEditDashboard: (wsId, dashboardId, { patch, base_version, session_id }) =>
-    request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/manual-edit`, {
-      body: { patch, base_version, session_id },
-    }),
   undoDashboard: (wsId, dashboardId, sessionId) =>
     request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/undo?session_id=${sessionId}`),
   redoDashboard: (wsId, dashboardId, sessionId) =>
     request("POST", `/api/workspaces/${wsId}/dashboards/${dashboardId}/redo?session_id=${sessionId}`),
+  importDashboard: (wsId, metabase_dashboard_id) =>
+    request("POST", `/api/workspaces/${wsId}/dashboards/import`, {
+      body: { metabase_dashboard_id },
+    }),
 };

@@ -1,159 +1,257 @@
-import { CloseIcon } from "./Icons";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../services/api";
+import { useWorkspaceStore } from "../store/workspaceStore";
 
-const styles = {
-  container: {
-    background: "var(--ios-surface)",
-    borderLeft: "1px solid var(--ios-separator)",
-    display: "flex",
-    flexDirection: "column",
-    minWidth: "40%",
-  },
-  toolbar: {
-    padding: "10px 14px",
-    borderBottom: "1px solid var(--ios-separator)",
-    background: "var(--ios-surface-2)",
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  },
-  urlBar: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    background: "var(--ios-surface)",
-    border: "1px solid var(--ios-separator)",
-    borderRadius: "10px",
-    padding: "6px 12px",
-    fontSize: "12px",
-    color: "var(--ios-text-secondary)",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  dot: {
-    width: "6px",
-    height: "6px",
-    borderRadius: "50%",
-    background: "var(--ios-green)",
-    flexShrink: 0,
-  },
-  urlText: {
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  actionBtn: {
-    width: "32px",
-    height: "32px",
-    borderRadius: "8px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "transparent",
-    color: "var(--ios-text-secondary)",
-  },
-  iframe: {
-    flex: 1,
-    border: "none",
-    background: "#FFFFFF",
-  },
-  empty: {
-    padding: "40px 32px",
-    color: "var(--ios-text-secondary)",
-    fontSize: "14px",
-    textAlign: "center",
-    lineHeight: 1.55,
-  },
-  emptyTitle: {
-    fontSize: "17px",
-    fontWeight: "600",
-    color: "var(--ios-text)",
-    marginBottom: "6px",
-    letterSpacing: "-0.01em",
-  },
-  emptyHint: {
-    marginTop: "14px",
-    padding: "10px 14px",
-    background: "var(--ios-surface-2)",
-    borderRadius: "var(--radius-sm)",
-    display: "inline-block",
-    fontStyle: "italic",
-    fontSize: "13px",
-  },
-};
+const PANEL_WIDTH = 980;
+const RENDER_WIDTH = 1560;
+const SCALE = PANEL_WIDTH / RENDER_WIDTH;
 
-function shortenUrl(url) {
-  if (!url) return "";
-  try {
-    const u = new URL(url);
-    return u.pathname.length > 40 ? u.pathname.slice(0, 40) + "..." : u.pathname;
-  } catch {
-    return url.slice(0, 40);
-  }
-}
+export default function DashboardEmbed({ url, metabaseId, onClose }) {
+  const navigate = useNavigate();
+  const workspaceId = useWorkspaceStore((s) => s.activeWorkspace?.id);
+  const [importing, setImporting] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [error, setError] = useState(null);
 
-export default function DashboardEmbed({ url, onClose }) {
-  if (!url) {
-    return (
-      <aside style={{ ...styles.container, width: "40%" }}>
-        <div style={styles.toolbar}>
-          <div style={styles.urlBar}>
-            <div style={{ ...styles.dot, background: "var(--ios-text-tertiary)" }} />
-            <span style={styles.urlText}>No dashboard loaded</span>
-          </div>
+  const handleEdit = async () => {
+    if (!metabaseId) {
+      setError("Dashboard ID not available. Regenerate the dashboard first.");
+      return;
+    }
+    if (!workspaceId) {
+      setError("No active workspace.");
+      return;
+    }
+    setError(null);
+    setImporting(true);
+    try {
+      const res = await api.importDashboard(workspaceId, metabaseId);
+      navigate(`/dashboard/${res.dashboard_id}/edit`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const containerStyle = expanded
+    ? {
+        position: "fixed",
+        inset: "16px 16px 16px 16px",
+        zIndex: 200,
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--ios-bg)",
+        border: "1px solid var(--ios-separator)",
+        borderRadius: 12,
+        boxShadow: "0 8px 40px rgba(0,0,0,0.2)",
+      }
+    : {
+        width: PANEL_WIDTH,
+        minWidth: 400,
+        maxWidth: 900,
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--ios-bg)",
+        borderLeft: "1px solid var(--ios-separator)",
+      };
+
+  return (
+    <>
+      {expanded && (
+        <div
+          onClick={() => setExpanded(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            zIndex: 199,
+          }}
+        />
+      )}
+
+      <div style={containerStyle}>
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            padding: "8px 12px",
+            borderBottom: "1px solid var(--ios-separator)",
+            background: "var(--ios-surface)",
+            borderTopLeftRadius: expanded ? 12 : 0,
+            borderTopRightRadius: expanded ? 12 : 0,
+          }}
+        >
+          <input
+            readOnly
+            value={url || "No dashboard loaded"}
+            style={{
+              flex: 1,
+              padding: "5px 10px",
+              borderRadius: 6,
+              border: "1px solid var(--ios-separator)",
+              background: "transparent",
+              color: "inherit",
+              fontSize: 11,
+              minWidth: 0,
+            }}
+          />
+
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="ios-btn-ghost"
+            style={{
+              padding: "5px 12px",
+              fontSize: 12,
+              borderRadius: "var(--radius-pill)",
+              cursor: "pointer",
+            }}
+          >
+            {expanded ? "Collapse" : "Expand"}
+          </button>
+
+          <button
+            onClick={handleEdit}
+            disabled={importing || !metabaseId}
+            className="ios-btn-ghost"
+            style={{
+              padding: "5px 12px",
+              fontSize: 12,
+              borderRadius: "var(--radius-pill)",
+              cursor: metabaseId ? "pointer" : "not-allowed",
+              opacity: importing ? 0.6 : 1,
+            }}
+          >
+            {importing ? "..." : "Edit"}
+          </button>
+
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="ios-btn-ghost"
+              style={{
+                padding: "5px 12px",
+                fontSize: 12,
+                borderRadius: "var(--radius-pill)",
+                textDecoration: "none",
+                color: "var(--ios-blue)",
+              }}
+            >
+              Open
+            </a>
+          )}
+
           {onClose && (
-            <button style={styles.actionBtn} onClick={onClose} aria-label="Close">
-              <CloseIcon size={16} color="var(--ios-text-secondary)" />
+            <button
+              onClick={onClose}
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: "50%",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              ×
             </button>
           )}
         </div>
-        <div style={styles.empty}>
-          <div style={styles.emptyTitle}>No dashboard yet</div>
-          <div>
-            Ask BIthere to build one, for example: build a fraud analytics
-            dashboard with monthly trend and top 10 states.
-          </div>
-          <div style={styles.emptyHint}>
-            "Buat dashboard fraud dengan monthly trend"
-          </div>
-        </div>
-      </aside>
-    );
-  }
 
-  return (
-    <aside style={{ ...styles.container, width: "55%" }}>
-      <div style={styles.toolbar}>
-        <div style={styles.urlBar}>
-          <div style={styles.dot} />
-          <span style={styles.urlText}>{shortenUrl(url)}</span>
-        </div>
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="ios-btn-ghost"
+        {error && (
+          <div
+            style={{
+              padding: "6px 12px",
+              color: "var(--ios-red)",
+              fontSize: 11,
+              background: "rgba(255, 59, 48, 0.08)",
+              borderBottom: "1px solid var(--ios-separator)",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <div
           style={{
-            padding: "6px 10px",
-            fontSize: "13px",
-            borderRadius: "8px",
+            flex: 1,
+            background: "var(--ios-bg)",
+            overflow: "auto",
+            borderBottomLeftRadius: expanded ? 12 : 0,
+            borderBottomRightRadius: expanded ? 12 : 0,
           }}
         >
-          Open
-        </a>
-        {onClose && (
-          <button style={styles.actionBtn} onClick={onClose} aria-label="Close">
-            <CloseIcon size={16} color="var(--ios-text-secondary)" />
-          </button>
-        )}
+          {url ? (
+            expanded ? (
+              <iframe
+                src={url}
+                title="Metabase Dashboard"
+                style={{ width: "100%", height: "100%", border: "none" }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: PANEL_WIDTH,
+                  height: "100%",
+                  overflow: "auto",
+                  position: "relative",
+                }}
+              >
+                <div
+                  style={{
+                    width: RENDER_WIDTH,
+                    height: `${100 / SCALE}%`,
+                    transform: `scale(${SCALE})`,
+                    transformOrigin: "top left",
+                  }}
+                >
+                  <iframe
+                    src={url}
+                    title="Metabase Dashboard"
+                    style={{
+                      width: RENDER_WIDTH,
+                      height: "100%",
+                      border: "none",
+                    }}
+                  />
+                </div>
+              </div>
+            )
+          ) : (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--ios-text-secondary)",
+                fontSize: 12,
+                padding: 24,
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, color: "var(--ios-text)" }}>
+                No dashboard yet
+              </div>
+              <div>
+                Ask BIthere to build one, for example:
+                <br />
+                "build a fraud analytics dashboard with monthly trend and top 10 states"
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-      <iframe
-        style={styles.iframe}
-        src={url}
-        title="BIthere Dashboard"
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-      />
-    </aside>
+    </>
   );
 }

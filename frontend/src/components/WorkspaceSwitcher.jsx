@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuthStore } from "../store/authStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 
 export default function WorkspaceSwitcher() {
@@ -6,6 +7,9 @@ export default function WorkspaceSwitcher() {
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
   const setActive = useWorkspaceStore((s) => s.setActive);
   const createWorkspace = useWorkspaceStore((s) => s.createWorkspace);
+
+  const userRole = useAuthStore((s) => s.role);
+  const canCreateWorkspace = userRole === "admin";
 
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -56,7 +60,14 @@ export default function WorkspaceSwitcher() {
             background: activeWorkspace?.setup_completed ? "#10b981" : "#f59e0b",
           }}
         />
-        <span style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span
+          style={{
+            maxWidth: 160,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
           {activeWorkspace?.name || "No workspace"}
         </span>
         <span style={{ fontSize: 9, opacity: 0.6 }}>▼</span>
@@ -103,25 +114,28 @@ export default function WorkspaceSwitcher() {
             </button>
           ))}
 
-          <div style={{ borderTop: "1px solid var(--ios-separator)", margin: "6px 0" }} />
-
-          <button
-            onClick={handleCreate}
-            disabled={creating}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              background: "transparent",
-              border: "none",
-              borderRadius: 6,
-              color: "var(--ios-blue)",
-              fontSize: 13,
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-          >
-            {creating ? "Creating..." : "+ New workspace"}
-          </button>
+          {canCreateWorkspace && (
+            <>
+              <div style={{ borderTop: "1px solid var(--ios-separator)", margin: "6px 0" }} />
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  background: "transparent",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "var(--ios-blue)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                {creating ? "Creating..." : "+ New workspace"}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

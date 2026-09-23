@@ -44,8 +44,8 @@ class PostgresConnector(BaseConnector):
                     dsn,
                     min_size=1,
                     max_size=8,
-                    timeout=10,
-                    command_timeout=30,
+                    timeout=60,
+                    command_timeout=600,
                 )
                 logger.info("[SUCCESS] PostgreSQL connection pool created")
             except Exception as error:

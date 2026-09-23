@@ -4,15 +4,16 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Admin from "./pages/Admin.jsx";
 import Chat from "./pages/Chat.jsx";
 import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
 import SetupWizard from "./pages/wizard/SetupWizard.jsx";
 import IntegrationsPage from "./pages/integrations/IntegrationsPage.jsx";
 import DatasetsPage from "./pages/datasets/DatasetsPage.jsx";
 import SchemaBuilderPage from "./pages/schema-builder/SchemaBuilderPage.jsx";
 import KnowledgeBasePage from "./pages/knowledge-base/KnowledgeBasePage.jsx";
+import DashboardEditorPage from "./pages/dashboard-editor/DashboardEditorPage.jsx";
 import { useAuthStore } from "./store/authStore";
 import { useWorkspaceStore } from "./store/workspaceStore";
 
-import DashboardEditorPage from "./pages/dashboard-editor/DashboardEditorPage.jsx";
 
 function LoadingScreen() {
   return (
@@ -93,6 +94,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
 
       <Route
         path="/wizard"
@@ -147,7 +149,6 @@ export default function App() {
           </WorkspaceGuard>
         }
       />
-
 
       <Route
         path="/chat"

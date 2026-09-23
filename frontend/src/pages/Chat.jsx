@@ -55,6 +55,7 @@ export default function Chat() {
   const isStreaming = useChatStore((s) => s.isStreaming);
   const error = useChatStore((s) => s.error);
   const activeDashboardUrl = useChatStore((s) => s.activeDashboardUrl);
+  const activeDashboardMetabaseId = useChatStore((s) => s.activeDashboardMetabaseId);
   const sendMessage = useChatStore((s) => s.sendMessage);
 
   const [showDashboard, setShowDashboard] = useState(true);
@@ -98,6 +99,7 @@ export default function Chat() {
         {showDashboard && (
           <DashboardEmbed
             url={activeDashboardUrl}
+            metabaseId={activeDashboardMetabaseId}
             onClose={() => setShowDashboard(false)}
           />
         )}
