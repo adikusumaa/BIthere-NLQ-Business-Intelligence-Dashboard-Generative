@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ChevronRightIcon, PlusIcon, TrashIcon } from "../components/Icons";
 import { api } from "../services/api";
 import { useAuthStore } from "../store/authStore";
+import { useChatStore } from "../store/chatStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -284,6 +285,7 @@ export default function Admin() {
   };
 
   const handleLogout = async () => {
+    useChatStore.getState().reset();
     await logout();
     navigate("/login");
   };

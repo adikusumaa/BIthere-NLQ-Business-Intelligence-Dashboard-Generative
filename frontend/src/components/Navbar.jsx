@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
+import { useChatStore } from "../store/chatStore";
 
 const MENU = [
   { path: "/chat", label: "Chat" },
@@ -18,6 +19,7 @@ export default function Navbar({ rightActions }) {
   const logout = useAuthStore((s) => s.logout);
 
   const handleLogout = async () => {
+    useChatStore.getState().reset();
     await logout();
     navigate("/login");
   };

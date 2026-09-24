@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useAuthStore } from "../store/authStore";
+import { useChatStore } from "../store/chatStore";
 
 const styles = {
   page: {
@@ -116,6 +117,7 @@ export default function Login() {
     setError(null);
     setLoading(true);
     try {
+      useChatStore.getState().reset();
       await login(email, password);
       navigate("/chat");
     } catch (err) {

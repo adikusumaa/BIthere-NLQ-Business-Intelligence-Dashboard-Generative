@@ -4,7 +4,7 @@ import { api } from "../services/api";
 import { useWorkspaceStore } from "../store/workspaceStore";
 
 const PANEL_WIDTH = 980;
-const RENDER_WIDTH = 1560;
+const RENDER_WIDTH = 1300;
 const SCALE = PANEL_WIDTH / RENDER_WIDTH;
 
 export default function DashboardEmbed({ url, metabaseId, onClose }) {

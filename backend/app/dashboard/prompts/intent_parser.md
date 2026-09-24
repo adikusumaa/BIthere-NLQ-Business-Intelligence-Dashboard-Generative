@@ -93,34 +93,32 @@ When adding a card, the full object looks like:
 
 ## SQL BEST PRACTICES
 
-- Table aliases: `t` (transactions), `c` (cards), `u` (users), `m` (mcc_codes).
-- Join keys:
-  - `t.client_id = u.id`
-  - `t.card_id = c.id`
-  - `t.mcc = m.mcc_code`
-- **DO NOT JOIN `fraud_labels`.** Use `t.fraud_label = 'Yes'` directly.
-  (The IDs in that table do not match `transactions.id`.)
-- Fraud filter: `t.fraud_label = 'Yes'`
+- Use the actual table and column names shown in the dashboard state and schema.
+- Use short table aliases where sensible (t, c, u, m, o).
+- Join keys must be inferred from the schema shown above.
 - Add `LIMIT 1000` for non-aggregated queries.
 - Alias aggregates: `SUM(amount) AS total_amount`, `COUNT(*) AS cnt`.
+- Wrap denominator with NULLIF(x, 0) when dividing aggregated counts.
+- Always put a SINGLE SPACE between SQL keywords and identifiers:
+  "SELECT t.id FROM orders t" not "SELECTt.id FROMorders t".
 
 ## EXAMPLES
 
 ### Example 1 — Add a chart
 
-Instruction: "Tambahkan bar chart 'Fraud by Brand' di atas 'Top 10 States'."
+Instruction: "Tambahkan bar chart 'Revenue by Region' di atas 'Monthly Trend'."
 
 Output:
 ```json
 {
   "patch_type": "ADD_CARD",
   "page_id": "page-1",
-  "insert_before": "card-top10states",
+  "insert_before": "card-monthly-trend",
   "card": {
-    "id": "card-fraud-by-brand",
-    "title": "Fraud by Brand",
+    "id": "card-revenue-by-region",
+    "title": "Revenue by Region",
     "type": "bar",
-    "sql": "SELECT c.card_brand AS brand, COUNT(*) AS fraud_count FROM transactions t JOIN cards c ON t.card_id = c.id JOIN fraud_labels f ON t.id = f.id WHERE f.fraud_label = 'Yes' GROUP BY c.card_brand ORDER BY fraud_count DESC",
+    "sql": "SELECT region AS region, SUM(amount) AS total_revenue FROM orders GROUP BY region ORDER BY total_revenue DESC",
     "position": {"row": 8, "col": 0, "size_x": 12, "size_y": 4},
     "style": {"color": "#3b82f6"}
   }
@@ -129,14 +127,14 @@ Output:
 
 ### Example 2 — Swap two cards
 
-Instruction: "Tukar posisi 'Monthly Trend' dan 'Fraud by Brand'."
+Instruction: "Tukar posisi 'Monthly Trend' dan 'Revenue by Region'."
 
 Output:
 ```json
 {
   "patch_type": "SWAP_CARDS",
   "card_id_a": "card-monthly-trend",
-  "card_id_b": "card-fraud-by-brand"
+  "card_id_b": "card-revenue-by-region"
 }
 ```
 

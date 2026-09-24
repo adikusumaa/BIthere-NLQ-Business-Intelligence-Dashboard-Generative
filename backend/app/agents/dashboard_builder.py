@@ -1,8 +1,8 @@
 """
-Dashboard Builder Agent (PRJ 4.7).
+Dashboard Builder Agent.
 
-Converts a natural-language request into a full dashboard configuration
-and renders it in Metabase via the MCP render_dashboard tool.
+Converts a natural-language request into a full dashboard configuration.
+Schema is injected dynamically from the workspace connector at runtime.
 """
 
 import json
@@ -10,43 +10,19 @@ import re
 
 from app.agents.llm import generate_chat
 from app.core.logging import log_process, log_info, log_error
+from app.utils.sql_sanitizer import sanitize_sql
 
 
-SCHEMA_CONTEXT = """
-Available tables (PostgreSQL: Supabase):
-
-transactions:
-  id, date (timestamptz), client_id, card_id, amount (numeric),
-  use_chip, merchant_id, merchant_city, merchant_state, zip,
-  mcc (integer), errors, fraud_label (text: 'Yes' | 'No')
-
-cards:
-  id, client_id, card_brand (Visa | Mastercard | Discover | Amex),
-  card_type (Credit | Debit | Debit (Prepaid)),
-  credit_limit, acct_open_date, card_on_dark_web
-
-users:
-  id, current_age, retirement_age, birth_year, birth_month,
-  gender (Male | Female), address, latitude, longitude,
-  per_capita_income, yearly_income, total_debt,
-  credit_score, num_credit_cards
-
-mcc_codes:
-  mcc_code (integer), description
-
-IMPORTANT:
-  - The dataset has a `fraud_labels` table, but its `id` does NOT match
-    `transactions.id`. Do NOT JOIN transactions with fraud_labels.
-  - Use `transactions.fraud_label` directly for fraud filtering.
-"""
-
-
-DASHBOARD_SYSTEM_PROMPT = f"""You are a Dashboard Builder Agent for a fintech fraud analytics platform.
+DASHBOARD_SYSTEM_PROMPT_TEMPLATE = """You are a Dashboard Builder Agent for a Business Intelligence platform.
 
 Produce a complete dashboard configuration as a SINGLE JSON object.
 Output raw JSON only. No markdown, no prose, no code fences.
 
-{SCHEMA_CONTEXT}
+AVAILABLE TABLES (workspace schema):
+{schema_context}
+
+If the schema section above is empty, use the table and column names
+referenced literally in the user prompt. Never invent new names.
 
 Output JSON schema:
 {{
@@ -68,7 +44,7 @@ Output JSON schema:
         {{
           "title": "string",
           "sql": "string",
-          "display": "scalar|gauge|bar|row|line|area|combo|pie|donut|table|funnel|progress|scatter|waterfall",
+          "display": "scalar|gauge|bar|row|line|area|combo|pie|donut|table|funnel|progress|scatter|waterfall|map",
           "layout": [row, col, size_x, size_y],
           "dimension": "column_name_or_alias",
           "metric": "column_alias",
@@ -97,22 +73,24 @@ Chart rules:
 - "dimension" must exactly match the SQL column name or alias.
 
 Filter values rules:
-- Each filter must include a "values" array listing up to 20 distinct values.
-- Card Brand: ["Visa", "Mastercard", "Discover", "Amex"]
-- Card Type: ["Credit", "Debit", "Debit (Prepaid)"]
-- Chip Usage: ["Chip Transaction", "Swipe Transaction", "Online Transaction"]
-- Gender: ["Male", "Female"]
-- State or city filters: use an empty array [].
+- Each filter may include a "values" array with up to 20 distinct values.
+- Only add values when the user explicitly provided the list in the prompt.
+- Otherwise, use an empty array.
 
 SQL rules:
 - Only SELECT statements.
-- Table aliases: t (transactions), c (cards), u (users), m (mcc_codes).
-- Join keys: t.client_id = u.id, t.card_id = c.id, t.mcc = m.mcc_code.
-- DO NOT JOIN fraud_labels. Use transactions.fraud_label directly.
-- Fraud filter: t.fraud_label = 'Yes'.
+- Use the actual table names and column names from the schema.
+- Use short aliases for tables where sensible.
+- Join keys must be inferred from the schema (usually column names ending with _id).
+- Add LIMIT 1000 for non-aggregated queries.
+- Alias aggregates: SUM(col) AS total_x, COUNT(*) AS cnt, AVG(col) AS avg_x.
+- Wrap denominator with NULLIF(x, 0) when dividing aggregated counts.
+- Always put a SINGLE SPACE between SQL keywords and identifiers.
+  Correct:   "SELECT t.id FROM orders t"
+  Incorrect: "SELECTt.id FROMorders t"
 - Optional filter tags: [[AND alias.column = {{{{tag_name}}}}]].
 - Never wrap {{{{tag_name}}}} in quotes.
-- Non-aggregated queries must include LIMIT.
+- Never fabricate column or table names. If unsure, use the schema above.
 
 Layout grid is 24 columns wide:
 - KPI row:    [0, 0, 6, 4], [0, 6, 6, 4], [0, 12, 6, 4], [0, 18, 6, 4]
@@ -126,23 +104,15 @@ Filter and cross-filter rules:
 - The chart that drives a filter must NOT reference that filter tag in its SQL.
 - Add crossfilter only to charts whose dimension matches a filter column.
 
-MAP CHART RULES (CRITICAL):
+MAP CHART RULES:
 - To render a geographic map in Metabase, use display="map".
 - The SQL must return exactly two columns:
-    1. A 2-letter US state code as the first column (e.g. 'CA', 'NY', 'TX').
-    2. A numeric metric as the second column (e.g. COUNT(*)).
+    1. A region code (2-letter state code, country code, or city name).
+    2. A numeric metric (COUNT(*), SUM(...)).
 - The chart MUST include:
-    "dimension": "<state_column_alias>"
+    "dimension": "<region_column_alias>"
     "metric": "<metric_column_alias>"
-- Example SQL for map chart:
-    SELECT t.merchant_state AS state, COUNT(*) AS fraud_count
-    FROM transactions t
-    JOIN fraud_labels f ON t.id = f.id
-    WHERE f.fraud_label = 'Yes'
-      AND LENGTH(t.merchant_state) = 2
-    GROUP BY t.merchant_state
-- Do NOT use full state names like 'California'. Only 2-letter codes.
-- Filter rows with NULL or empty state values.
+- Filter rows with NULL or empty region values.
 """
 
 
@@ -200,6 +170,18 @@ def _extract_json_object(raw: str) -> str | None:
     return None
 
 
+def _sanitize_config_sql(config: dict) -> dict:
+    """Apply SQL sanitizer to every chart in the config."""
+    for page in config.get("pages", []):
+        for chart in page.get("charts", []):
+            if chart.get("sql"):
+                chart["sql"] = sanitize_sql(chart["sql"])
+    for chart in config.get("charts", []) or []:
+        if chart.get("sql"):
+            chart["sql"] = sanitize_sql(chart["sql"])
+    return config
+
+
 def _validate_config(config: dict) -> tuple[bool, str]:
     """Check required fields and shape."""
     if not isinstance(config, dict):
@@ -253,7 +235,7 @@ async def _llm_call(messages: list[dict]) -> str | None:
 
 
 def _try_parse(raw: str) -> dict | None:
-    """Extract, parse and validate JSON from raw LLM output."""
+    """Extract, parse, validate, sanitize SQL in the config."""
     extracted = _extract_json_object(raw)
     if not extracted:
         return None
@@ -268,20 +250,29 @@ def _try_parse(raw: str) -> dict | None:
     if not valid:
         log_error(f"dashboard_builder: config invalid: {reason}")
         return None
+    config = _sanitize_config_sql(config)
     return config
 
 
-async def generate_dashboard_config(user_prompt: str) -> dict | None:
+async def generate_dashboard_config(
+    user_prompt: str,
+    schema_hint: str = "",
+) -> dict | None:
     """
     Ask the LLM for a full dashboard configuration.
 
-    Attempts once. If the response cannot be parsed, retries with an
-    explicit reminder to output raw JSON.
+    schema_hint should be provided by the caller from the workspace's
+    default connector. If empty, the LLM will rely on the prompt only.
     """
     log_process("dashboard_builder: generating config via LLM")
 
+    schema_context = (
+        schema_hint.strip() if schema_hint and schema_hint.strip() else "(no schema provided)"
+    )
+    system_prompt = DASHBOARD_SYSTEM_PROMPT_TEMPLATE.format(schema_context=schema_context)
+
     messages = [
-        {"role": "system", "content": DASHBOARD_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -307,7 +298,7 @@ async def generate_dashboard_config(user_prompt: str) -> dict | None:
     log_process("dashboard_builder: retrying with reminder prompt")
 
     retry_messages = [
-        {"role": "system", "content": DASHBOARD_SYSTEM_PROMPT + RETRY_PROMPT_SUFFIX},
+        {"role": "system", "content": system_prompt + RETRY_PROMPT_SUFFIX},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -330,6 +321,7 @@ async def generate_dashboard_config(user_prompt: str) -> dict | None:
 async def build_dashboard(
     user_prompt: str,
     query_results: list[dict] | None = None,
+    schema_hint: str = "",
 ) -> dict:
     """
     Build a Metabase dashboard from a natural-language request.
@@ -337,13 +329,14 @@ async def build_dashboard(
     Args:
         user_prompt: The original NLQ prompt from the user.
         query_results: Reserved for future use.
+        schema_hint: Optional schema description from the workspace connector.
 
     Returns:
         dict with keys: success, config, dashboard_id, embed_url, error.
     """
     log_process(f"dashboard_builder: '{user_prompt[:60]}'")
 
-    config = await generate_dashboard_config(user_prompt)
+    config = await generate_dashboard_config(user_prompt, schema_hint=schema_hint)
     if not config:
         return {
             "success": False,

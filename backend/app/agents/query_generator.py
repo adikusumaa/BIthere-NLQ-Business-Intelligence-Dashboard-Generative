@@ -1,42 +1,13 @@
 """
 Query Generator Agent.
-Converts natural language questions into safe SQL queries.
-Supports PostgreSQL, DuckDB, MySQL, SQLite dialects.
+Converts natural language questions into SQL.
+Schema is injected from the workspace RAG context or connector.
 """
 
 import re
 
 from app.agents.llm import generate_chat
 from app.core.logging import log_info, log_error, log_warning
-
-
-# Fallback schema used when no RAG context is available (v1 compat).
-FINTECH_SCHEMA_HINT = """users:
-  id, current_age, retirement_age, birth_year, birth_month,
-  gender, address, latitude, longitude, per_capita_income,
-  yearly_income, total_debt, credit_score, num_credit_cards
-
-cards:
-  id, client_id, card_brand, card_type, card_number, expires, cvv,
-  has_chip, num_cards_issued, credit_limit, acct_open_date,
-  year_pin_last_changed, card_on_dark_web
-
-transactions:
-  id, date, client_id, card_id, amount, use_chip,
-  merchant_id, merchant_city, merchant_state, zip, mcc, errors
-
-fraud_labels:
-  id, fraud_label (values: 'Yes' or 'No')
-
-mcc_codes:
-  mcc_code, description
-
-JOIN KEYS:
-- transactions.client_id = users.id
-- transactions.card_id = cards.id
-- transactions.mcc = mcc_codes.mcc_code
-- transactions.id = fraud_labels.id
-"""
 
 
 DIALECT_NOTES = {
@@ -74,6 +45,12 @@ RULES:
 - Write literal values directly. Example: WHERE status = 'active'.
 - Do NOT include markdown, code fences, comments, or explanations.
 - Return ONLY the SQL query.
+- If the schema above is insufficient, use the table and column names
+  referenced literally in the user question. Never invent new names.
+- Always put a SINGLE SPACE between SQL keywords and identifiers.
+  Correct:   "SELECT t.id FROM orders t"
+  Incorrect: "SELECTt.id FROMorders t"
+- Wrap the denominator with NULLIF(x, 0) when dividing aggregated counts.
 
 DIALECT: {dialect}
 {diag_notes}
@@ -111,20 +88,29 @@ async def generate_query(
     metadata_context: str = "",
     api_key: str | None = None,
     dialect: str = "postgresql",
+    schema_hint: str = "",
 ) -> str:
     """
-    Generate a safe SQL query from natural language using RAG context.
+    Generate a safe SQL query from natural language.
 
     Args:
         user_prompt: User's natural-language question.
-        metadata_context: Schema docs from RAG (empty = use FINTECH_SCHEMA_HINT).
-        api_key: Workspace Groq key. If None, platform fallback.
-        dialect: Target SQL dialect (postgresql | duckdb | mysql | sqlite).
+        metadata_context: Schema docs from RAG.
+        api_key: Workspace Groq key.
+        dialect: SQL dialect (postgresql | duckdb | mysql | sqlite).
+        schema_hint: Optional schema description from workspace connector.
+                     Used when metadata_context is empty.
     """
-    if metadata_context and metadata_context.strip():
-        schema_section = f"SCHEMA (from workspace RAG):\n{metadata_context}"
+    schema_text = (metadata_context or "").strip() or (schema_hint or "").strip()
+
+    if schema_text:
+        schema_section = f"SCHEMA:\n{schema_text}"
     else:
-        schema_section = f"SCHEMA:\n{FINTECH_SCHEMA_HINT}"
+        schema_section = (
+            "SCHEMA: (not provided)\n"
+            "Use table and column names from the user question literally. "
+            "Do not invent new names."
+        )
 
     diag_notes = DIALECT_NOTES.get(dialect, DIALECT_NOTES["postgresql"])
     system_prompt = QUERY_GEN_SYSTEM_PROMPT.format(
@@ -133,10 +119,7 @@ async def generate_query(
         diag_notes=diag_notes,
     )
 
-    user_message = (
-        f"User question: {user_prompt}\n\n"
-        f"SQL query:"
-    )
+    user_message = f"User question: {user_prompt}\n\nSQL query:"
 
     messages = [
         {"role": "system", "content": system_prompt},

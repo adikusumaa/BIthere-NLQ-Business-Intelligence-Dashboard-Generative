@@ -90,6 +90,29 @@ def _google_key(ctx: Optional[AgentContext]) -> Optional[str]:
 # Nodes
 # =====================================================
 
+INTERNAL_TABLES = {
+    "profiles", "query_history", "dashboard_configs", "business_glossary",
+    "ingestion_logs", "audit_logs", "usage_events",
+    "dashboard_versions", "dashboard_patches",
+}
+
+async def _build_schema_hint(ctx: Optional[AgentContext]) -> str:
+    """Build a compact schema description from the workspace connector."""
+    if not ctx or not ctx.connector:
+        return ""
+    try:
+        schema = await ctx.connector.get_schema()
+        lines = []
+        for table, columns in schema.items():
+            if table in INTERNAL_TABLES or table.startswith("workspace_"):
+                continue
+            cols = ", ".join(c["column"] for c in columns)
+            lines.append(f"{table}({cols})")
+        return "\n".join(lines)
+    except Exception as exc:
+        log_warning(f"Could not build schema hint: {exc}")
+        return ""
+
 async def node_planner(state: AgentState) -> AgentState:
     log_process("Node: Planner (v2)")
     ctx = state.get("context")
@@ -213,11 +236,14 @@ async def node_query_generator(state: AgentState) -> AgentState:
     ctx = state.get("context")
     dialect = ctx.dialect if ctx else "postgresql"
 
+    schema_hint = await _build_schema_hint(ctx)
+
     state["generated_query"] = await query_generator.generate_query(
         state["prompt"],
         state.get("metadata_context", ""),
         api_key=_llm_key(ctx),
         dialect=dialect,
+        schema_hint=schema_hint,
     )
     return state
 
@@ -300,9 +326,13 @@ async def node_dashboard(state: AgentState) -> AgentState:
         return state
 
     ctx = state.get("context")
+    schema_hint = await _build_schema_hint(ctx)
+
     try:
         result = await dashboard_builder.build_dashboard(
-            state["prompt"], state.get("query_result") or []
+            state["prompt"],
+            state.get("query_result") or [],
+            schema_hint=schema_hint,
         )
         state["dashboard_config"] = result.get("config")
         state["dashboard_url"] = result.get("embed_url")
