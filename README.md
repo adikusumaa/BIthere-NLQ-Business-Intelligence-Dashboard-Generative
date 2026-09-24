@@ -192,7 +192,7 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 
 <div align="center">
 
-**Editor Overview**
+### Editor Overview
 
 <img src="img/img3/DashboardEditor-Overview.png" width="900" />
 <br/>
@@ -200,7 +200,7 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 
 <br/><br/>
 
-**Before — Broken Dashboard Needs Editing**
+### Before — Broken Dashboard Needs Editing
 
 <img src="img/img3/Problem%20Dashboard%20must%20be%20Edit.png" width="440" />
 <img src="img/img3/Editor-PatchPreview.png" width="440" />
@@ -209,7 +209,7 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 
 <br/><br/>
 
-**Patch Applied — Dashboard Fixed Without Regenerating**
+### Patch Applied — Dashboard Fixed Without Regenerating
 
 <img src="img/img3/Edit-Dashboard%20Fixed%20after%20edit.png" width="900" />
 <br/>
@@ -217,7 +217,7 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 
 <br/><br/>
 
-**Live Properties Panel**
+### Live Properties Panel
 
 <img src="img/img3/Edit-Properties.png" width="440" />
 <img src="img/img3/Editor-DragCanvas.png" width="440" />
@@ -226,7 +226,7 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 
 <br/><br/>
 
-**Version History & Diff**
+### Version History & Diff
 
 <img src="img/img3/Editor-VersionHistory.png" width="440" />
 <img src="img/img3/Editor-DiffViewer.png" width="440" />
