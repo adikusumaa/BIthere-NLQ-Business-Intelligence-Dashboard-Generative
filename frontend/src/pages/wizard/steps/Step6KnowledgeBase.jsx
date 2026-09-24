@@ -107,7 +107,7 @@ export default function Step6KnowledgeBase({ onBack }) {
         value={term}
         onChange={(e) => setTerm(e.target.value)}
         style={inputStyle}
-        placeholder="e.g. chargeback"
+        placeholder="e.g. revenue"
       />
 
       <label style={labelStyle}>Definition</label>
@@ -116,7 +116,7 @@ export default function Step6KnowledgeBase({ onBack }) {
         onChange={(e) => setDefinition(e.target.value)}
         rows={3}
         style={{ ...inputStyle, resize: "vertical" }}
-        placeholder="A reversal of a card transaction initiated by the cardholder or issuer..."
+        placeholder="A short description of the term as it is used in your business context..."
       />
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>

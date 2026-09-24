@@ -7,7 +7,7 @@ const PANEL_WIDTH = 980;
 const RENDER_WIDTH = 1300;
 const SCALE = PANEL_WIDTH / RENDER_WIDTH;
 
-export default function DashboardEmbed({ url, metabaseId, onClose }) {
+export default function DashboardEmbed({ url,metabaseId, onClose }) {
   const navigate = useNavigate();
   const workspaceId = useWorkspaceStore((s) => s.activeWorkspace?.id);
   const [importing, setImporting] = useState(false);
@@ -100,7 +100,7 @@ export default function DashboardEmbed({ url, metabaseId, onClose }) {
           />
 
           <button
-            onClick={() => setExpanded((v) => !v)}
+            onClick={() => setExpanded((v) =>!v)}
             className="ios-btn-ghost"
             style={{
               padding: "5px 12px",
@@ -187,7 +187,7 @@ export default function DashboardEmbed({ url, metabaseId, onClose }) {
             background: "var(--ios-bg)",
             overflow: "auto",
             borderBottomLeftRadius: expanded ? 12 : 0,
-            borderBottomRightRadius: expanded ? 12 : 0,
+            borderBottomRightRadius: expanded? 12 : 0,
           }}
         >
           {url ? (
@@ -246,7 +246,7 @@ export default function DashboardEmbed({ url, metabaseId, onClose }) {
               <div>
                 Ask BIthere to build one, for example:
                 <br />
-                "build a fraud analytics dashboard with monthly trend and top 10 states"
+                "build a monthly trend dashboard with top 10 categories"
               </div>
             </div>
           )}

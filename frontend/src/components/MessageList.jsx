@@ -49,9 +49,9 @@ export default function MessageList({ messages, isStreaming }) {
       <div style={styles.container}>
         <div style={styles.empty}>
           <div style={styles.emptyTitle}>BIthere</div>
-          <div>Ask anything about the fraud dataset.</div>
+          <div>Ask anything about your data.</div>
           <div style={styles.emptyHint}>
-            "Berapa total transaksi fraud di bulan Januari 2010?"
+            "Show me the top 10 records by value"
           </div>
         </div>
       </div>

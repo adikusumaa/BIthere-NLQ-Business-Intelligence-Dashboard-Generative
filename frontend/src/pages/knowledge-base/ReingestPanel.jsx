@@ -24,23 +24,40 @@ export default function ReingestPanel() {
 
   return (
     <div>
-      <div style={{ border: "1px solid var(--ios-separator)", borderRadius: 10, padding: 20, background: "var(--ios-surface)" }}>
-        <strong style={{ fontSize: 14 }}>Re-ingest to Pinecone</strong>
-        <p style={{ color: "var(--ios-text-secondary)", fontSize: 13, marginTop: 8 }}>
+      <div
+        style={{
+          background: "var(--ios-surface)",
+          borderRadius: "var(--radius-md)",
+          padding: "22px 24px",
+          border: "1px solid var(--ios-separator)",
+          boxShadow: "var(--shadow-xs)",
+        }}
+      >
+        <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 8, color: "var(--ios-text)" }}>
+          Re-ingest to Pinecone
+        </div>
+        <p
+          style={{
+            color: "var(--ios-text-secondary)",
+            fontSize: 14,
+            lineHeight: 1.6,
+            marginBottom: 16,
+          }}
+        >
           Rebuilds the vector namespace from your current schema and glossary.
           Run this after uploading new data, adding terms, or applying schema.
         </p>
+
         <button
           onClick={handleReingest}
           disabled={running}
+          className="ios-btn ios-btn-pill"
           style={{
-            marginTop: 12,
-            padding: "10px 18px",
-            borderRadius: 8,
-            border: "none",
-            background: "#10b981",
-            color: "white",
-            fontSize: 14,
+            padding: "11px 24px",
+            fontSize: 15,
+            fontWeight: 600,
+            background: "var(--ios-green)",
+            color: "#FFFFFF",
             cursor: running ? "wait" : "pointer",
           }}
         >
@@ -48,20 +65,53 @@ export default function ReingestPanel() {
         </button>
 
         {result && (
-          <div style={{ marginTop: 16, padding: 14, background: "rgba(16,185,129,0.08)", borderRadius: 8, fontSize: 13 }}>
-            <div style={{ color: "#10b981", marginBottom: 6 }}>
-              <strong>Ingestion complete</strong>
+          <div
+            style={{
+              marginTop: 18,
+              padding: "16px 18px",
+              background: "rgba(52, 199, 89, 0.10)",
+              borderRadius: "var(--radius-md)",
+              fontSize: 14,
+              border: "1px solid rgba(52, 199, 89, 0.24)",
+            }}
+          >
+            <div style={{ color: "var(--ios-green)", fontWeight: 700, marginBottom: 8 }}>
+              Ingestion complete
             </div>
-            <div>Schema vectors: <strong>{result.schema?.vectors ?? 0}</strong></div>
-            <div>Glossary vectors: <strong>{result.glossary?.vectors ?? 0}</strong></div>
-            <div style={{ fontSize: 11, marginTop: 6, color: "var(--ios-text-tertiary)" }}>
-              Namespace: {result.namespace}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ color: "var(--ios-text-secondary)" }}>Schema vectors</span>
+              <strong style={{ color: "var(--ios-text)" }}>{result.schema?.vectors ?? 0}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ color: "var(--ios-text-secondary)" }}>Glossary vectors</span>
+              <strong style={{ color: "var(--ios-text)" }}>{result.glossary?.vectors ?? 0}</strong>
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                marginTop: 10,
+                color: "var(--ios-text-tertiary)",
+                fontFamily: "SF Mono, Monaco, Menlo, monospace",
+                wordBreak: "break-all",
+              }}
+            >
+              {result.namespace}
             </div>
           </div>
         )}
 
         {error && (
-          <div style={{ marginTop: 16, padding: 12, background: "rgba(248,113,113,0.08)", borderRadius: 8, color: "#f87171", fontSize: 13 }}>
+          <div
+            style={{
+              marginTop: 16,
+              padding: "12px 16px",
+              background: "rgba(255, 59, 48, 0.10)",
+              borderRadius: "var(--radius-md)",
+              color: "var(--ios-red)",
+              fontSize: 14,
+              border: "1px solid rgba(255, 59, 48, 0.24)",
+            }}
+          >
             {error}
           </div>
         )}

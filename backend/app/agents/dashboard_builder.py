@@ -84,7 +84,14 @@ SQL rules:
 - Join keys must be inferred from the schema (usually column names ending with _id).
 - Add LIMIT 1000 for non-aggregated queries.
 - Alias aggregates: SUM(col) AS total_x, COUNT(*) AS cnt, AVG(col) AS avg_x.
-- Wrap denominator with NULLIF(x, 0) when dividing aggregated counts.
+- ALWAYS wrap any division denominator with NULLIF(x, 0).
+  Example: profit / NULLIF(sales, 0).
+- For ratio / percentage / margin metrics, ALWAYS recompute from raw values:
+  SUM(numerator) / NULLIF(SUM(denominator), 0) * 100.
+  Never use AVG(precomputed_ratio) — precomputed columns may contain
+  Infinity or NaN values that break aggregation.
+- When the schema has both raw columns and precomputed ratio columns,
+  prefer the raw columns.
 - Always put a SINGLE SPACE between SQL keywords and identifiers.
   Correct:   "SELECT t.id FROM orders t"
   Incorrect: "SELECTt.id FROMorders t"

@@ -59,7 +59,7 @@ const styles = {
 };
 
 const FALLBACK_INSIGHT =
-  "Dashboard fraud analytics telah dibuat. Buka dashboard di panel kanan " +
+  "Dashboard telah dibuat. Buka dashboard di panel kanan " +
   "untuk mengeksplorasi visualisasi interaktif, atau kirim laporan ini " +
   "ke email untuk mendapatkan ringkasan lengkap beserta tangkapan layar.";
 
@@ -91,14 +91,14 @@ export default function ReportButton({ insight, dashboardUrl }) {
     setStatus(null);
     try {
       const body = {
-        title: "BIthere Fraud Report",
+        title: "BIthere Report",
         insight: insight || FALLBACK_INSIGHT,
         dashboard_url: dashboardUrl || null,
         channels: [channel],
       };
       if (channel === "email") {
         body.email_recipient = userEmail;
-        body.email_subject = "[BIthere] Fraud Report";
+        body.email_subject = "[BIthere] Report";
       }
       const response = await fetch(`${API_BASE_URL}/api/report`, {
         method: "POST",
@@ -118,7 +118,7 @@ export default function ReportButton({ insight, dashboardUrl }) {
         setOpen(false);
       }, 2200);
     } catch (err) {
-      setStatus({ ok: false, msg: err.message });
+      setStatus({ ok: false, msg: err.message});
     } finally {
       setBusy(false);
     }
@@ -137,7 +137,7 @@ export default function ReportButton({ insight, dashboardUrl }) {
         }
         aria-label="Send report"
       >
-        <MenuIcon size={18} color={disabled ? "var(--ios-text-tertiary)" : "var(--ios-blue)"} />
+        <MenuIcon size={18} color={disabled ?"var(--ios-text-tertiary)" : "var(--ios-blue)"} />
       </button>
 
       {open && !busy && (

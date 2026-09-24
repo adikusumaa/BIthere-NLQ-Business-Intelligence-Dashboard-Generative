@@ -25,34 +25,107 @@ export default function SchemaTab() {
     })();
   }, [activeWorkspace.id]);
 
-  if (loading) return <div style={{ color: "var(--ios-text-secondary)" }}>Loading schema...</div>;
-  if (error) return <div style={{ color: "#f87171", fontSize: 13 }}>{error}</div>;
+  if (loading) {
+    return <div style={{ color: "var(--ios-text-secondary)", fontSize: 14 }}>Loading schema...</div>;
+  }
+  if (error) {
+    return (
+      <div
+        style={{
+          color: "var(--ios-red)",
+          background: "rgba(255, 59, 48, 0.10)",
+          padding: "12px 16px",
+          borderRadius: "var(--radius-md)",
+          fontSize: 14,
+          border: "1px solid rgba(255, 59, 48, 0.24)",
+        }}
+      >
+        {error}
+      </div>
+    );
+  }
   if (!schema || Object.keys(schema).length === 0) {
-    return <div style={{ color: "var(--ios-text-secondary)", fontSize: 14 }}>No tables found. Upload a dataset and apply schema first.</div>;
+    return (
+      <div style={{ color: "var(--ios-text-secondary)", fontSize: 15 }}>
+        No tables found. Upload a dataset and apply schema first.
+      </div>
+    );
   }
 
   return (
     <div>
-      <div style={{ fontSize: 12, color: "var(--ios-text-secondary)", marginBottom: 12 }}>
-        Dialect: <strong>{dialect}</strong> · {Object.keys(schema).length} table(s)
+      <div
+        style={{
+          fontSize: 13,
+          color: "var(--ios-text-secondary)",
+          marginBottom: 14,
+          padding: "10px 16px",
+          background: "var(--ios-surface)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--ios-separator)",
+        }}
+      >
+        Dialect <strong style={{ color: "var(--ios-text)" }}>{dialect}</strong>
+        <span style={{ margin: "0 8px", color: "var(--ios-text-tertiary)" }}>·</span>
+        <strong style={{ color: "var(--ios-text)" }}>{Object.keys(schema).length}</strong> table(s)
       </div>
+
       {Object.entries(schema).map(([table, columns]) => (
         <div
           key={table}
           style={{
-            border: "1px solid var(--ios-separator)",
-            borderRadius: 10,
-            padding: 16,
-            marginBottom: 10,
             background: "var(--ios-surface)",
+            borderRadius: "var(--radius-md)",
+            padding: "16px 20px",
+            marginBottom: 12,
+            border: "1px solid var(--ios-separator)",
+            boxShadow: "var(--shadow-xs)",
           }}
         >
-          <strong style={{ fontSize: 14 }}>{table}</strong>
-          <div style={{ marginTop: 10, fontSize: 12 }}>
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: "var(--ios-text)",
+              marginBottom: 12,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span>{table}</span>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 400,
+                color: "var(--ios-text-tertiary)",
+              }}
+            >
+              {columns.length} cols
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {columns.map((c) => (
-              <div key={c.column} style={{ padding: "3px 0", color: "var(--ios-text-secondary)" }}>
-                <span style={{ color: "inherit", fontFamily: "monospace" }}>{c.column}</span>
-                <span style={{ marginLeft: 8, color: "var(--ios-text-tertiary)" }}>{c.type}</span>
+              <div
+                key={c.column}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: 14,
+                  padding: "4px 0",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "SF Mono, Monaco, Menlo, monospace",
+                    color: "var(--ios-text)",
+                  }}
+                >
+                  {c.column}
+                </span>
+                <span style={{ color: "var(--ios-text-secondary)", fontSize: 13 }}>
+                  {c.type}
+                </span>
               </div>
             ))}
           </div>

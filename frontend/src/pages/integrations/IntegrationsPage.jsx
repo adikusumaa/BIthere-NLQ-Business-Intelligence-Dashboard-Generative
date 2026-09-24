@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { api } from "../../services/api";
 import { useWorkspaceStore } from "../../store/workspaceStore";
 
@@ -20,6 +21,7 @@ export default function IntegrationsPage() {
   const [inputValue, setInputValue] = useState("");
   const [busy, setBusy] = useState(null);
   const [testResults, setTestResults] = useState({});
+  const [confirmService, setConfirmService] = useState(null);
 
   const load = async () => {
     if (!activeWorkspace?.id) return;
@@ -67,8 +69,13 @@ export default function IntegrationsPage() {
     }
   };
 
-  const handleDelete = async (service) => {
-    if (!confirm(`Delete API key for ${service}?`)) return;
+  const handleDelete = (service) => {
+    setConfirmService(service);
+  };
+
+  const confirmDeleteNow = async () => {
+    const service = confirmService;
+    setConfirmService(null);
     setBusy(service);
     try {
       await api.deleteIntegration(activeWorkspace.id, service);
@@ -89,11 +96,21 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", padding: "32px 24px", background: "var(--ios-bg)" }}>
+    <div style={{ minHeight: "100vh", padding: "32px 24px 60px", background: "var(--ios-bg)" }}>
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
-        <header style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 24, marginBottom: 4 }}>Integrations</h1>
-          <p style={{ color: "var(--ios-text-secondary)", fontSize: 14 }}>
+        <header style={{ marginBottom: 28 }}>
+          <h1
+            style={{
+              fontSize: 34,
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+              color: "var(--ios-text)",
+              marginBottom: 4,
+            }}
+          >
+            Integrations
+          </h1>
+          <p style={{ fontSize: 15, color: "var(--ios-text-secondary)" }}>
             Bring your own keys. They are encrypted at rest.
           </p>
         </header>
@@ -101,12 +118,13 @@ export default function IntegrationsPage() {
         {error && (
           <div
             style={{
-              color: "#f87171",
-              background: "rgba(248,113,113,0.08)",
-              padding: "10px 14px",
-              borderRadius: 8,
+              background: "rgba(255, 59, 48, 0.10)",
+              color: "var(--ios-red)",
+              padding: "12px 16px",
+              borderRadius: "var(--radius-md)",
               marginBottom: 16,
-              fontSize: 13,
+              fontSize: 14,
+              border: "1px solid rgba(255, 59, 48, 0.24)",
             }}
           >
             {error}
@@ -126,48 +144,105 @@ export default function IntegrationsPage() {
               <div
                 key={svc.key}
                 style={{
-                  border: "1px solid var(--ios-separator)",
-                  borderRadius: 10,
-                  padding: 16,
-                  marginBottom: 12,
                   background: "var(--ios-surface)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "16px 20px",
+                  marginBottom: 12,
+                  border: "1px solid var(--ios-separator)",
+                  boxShadow: "var(--shadow-xs)",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                  <div>
-                    <strong style={{ fontSize: 14 }}>{svc.label}</strong>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ios-text)" }}>
+                      {svc.label}
+                    </span>
                     {svc.required && (
-                      <span style={{ fontSize: 11, marginLeft: 8, color: "var(--ios-text-secondary)" }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "var(--ios-text-secondary)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
                         required
                       </span>
                     )}
                   </div>
                   {configured ? (
-                    <span style={{ color: "#10b981", fontSize: 12 }}>✓ configured</span>
+                    <span
+                      style={{
+                        color: "var(--ios-green)",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      ✓ configured
+                    </span>
                   ) : (
-                    <span style={{ color: "var(--ios-text-tertiary)", fontSize: 12 }}>
+                    <span style={{ color: "var(--ios-text-tertiary)", fontSize: 13 }}>
                       not set
                     </span>
                   )}
                 </div>
 
                 {!editing_ && (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button onClick={() => { setEditing(svc.key); setInputValue(""); }} style={btn("#3b82f6")}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => {
+                        setEditing(svc.key);
+                        setInputValue("");
+                      }}
+                      className="ios-btn ios-btn-pill"
+                      style={{
+                        padding: "7px 18px",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        background: "var(--ios-blue)",
+                        color: "#FFFFFF",
+                      }}
+                    >
                       {configured ? "Rotate" : "Set key"}
                     </button>
                     <button
                       onClick={() => handleTest(svc.key)}
                       disabled={!configured || busy === svc.key}
-                      style={btn("#6b7280")}
+                      className="ios-btn ios-btn-pill"
+                      style={{
+                        padding: "7px 18px",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        background: "var(--ios-surface-2)",
+                        color: "var(--ios-text)",
+                        opacity: !configured ? 0.5 : 1,
+                      }}
                     >
-                      {busy === svc.key ? "..." : "Test"}
+                      {busy === svc.key ? "Testing..." : "Test"}
                     </button>
                     {configured && (
                       <button
                         onClick={() => handleDelete(svc.key)}
                         disabled={busy === svc.key}
-                        style={btn("#ef4444")}
+                        className="ios-btn ios-btn-pill"
+                        style={{
+                          padding: "7px 18px",
+                          fontSize: 14,
+                          fontWeight: 600,
+                          background: "var(--ios-red)",
+                          color: "#FFFFFF",
+                        }}
                       >
                         Delete
                       </button>
@@ -183,26 +258,36 @@ export default function IntegrationsPage() {
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       autoFocus
-                      style={{
-                        flex: 1,
-                        padding: "8px 12px",
-                        borderRadius: 6,
-                        border: "1px solid var(--ios-separator)",
-                        background: "transparent",
-                        color: "inherit",
-                        fontSize: 13,
-                      }}
+                      className="ios-input"
+                      style={{ flex: 1 }}
                     />
                     <button
                       onClick={() => handleSave(svc.key)}
                       disabled={!inputValue || busy === svc.key}
-                      style={btn("#10b981")}
+                      className="ios-btn ios-btn-pill"
+                      style={{
+                        padding: "9px 20px",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        background: "var(--ios-green)",
+                        color: "#FFFFFF",
+                      }}
                     >
                       {busy === svc.key ? "..." : "Save"}
                     </button>
                     <button
-                      onClick={() => { setEditing(null); setInputValue(""); }}
-                      style={btn("#6b7280")}
+                      onClick={() => {
+                        setEditing(null);
+                        setInputValue("");
+                      }}
+                      className="ios-btn ios-btn-pill"
+                      style={{
+                        padding: "9px 20px",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        background: "var(--ios-surface-2)",
+                        color: "var(--ios-text)",
+                      }}
                     >
                       Cancel
                     </button>
@@ -212,31 +297,37 @@ export default function IntegrationsPage() {
                 {result && (
                   <div
                     style={{
-                      marginTop: 10,
-                      fontSize: 12,
-                      color: result.ok ? "#10b981" : "#f87171",
+                      marginTop: 12,
+                      fontSize: 13,
+                      color: result.ok ? "var(--ios-green)" : "var(--ios-red)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
                     }}
                   >
-                    {result.ok ? "OK: " : "Failed: "}
-                    {result.message}
+                    <strong>{result.ok ? "OK" : "Failed"}:</strong>
+                    <span>{result.message}</span>
                   </div>
                 )}
               </div>
             );
           })}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmService}
+        title="Delete API key?"
+        message={
+          confirmService
+            ? `The ${confirmService} key will be removed from this workspace. You can re-add it later.`
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={confirmDeleteNow}
+        onCancel={() => setConfirmService(null)}
+      />
     </div>
   );
-}
-
-function btn(bg) {
-  return {
-    padding: "7px 14px",
-    borderRadius: 6,
-    border: "none",
-    background: bg,
-    color: "white",
-    fontSize: 13,
-    cursor: "pointer",
-  };
 }

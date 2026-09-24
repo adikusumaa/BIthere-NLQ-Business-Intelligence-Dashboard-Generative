@@ -6,6 +6,19 @@ Suggests primary key, foreign keys, indexes, and partitions.
 import re
 from typing import Any, Dict, List, Optional
 
+SQL_RESERVED = {
+    "all", "and", "any", "as", "asc", "between", "by", "case",
+    "cast", "check", "column", "constraint", "create", "current_date",
+    "current_time", "current_timestamp", "default", "delete", "desc",
+    "distinct", "drop", "else", "end", "except", "exists", "false",
+    "foreign", "from", "group", "having", "in", "index", "inner",
+    "insert", "intersect", "into", "join", "key", "left", "like",
+    "limit", "not", "null", "offset", "on", "or", "order", "outer",
+    "over", "partition", "primary", "range", "rank", "returning",
+    "right", "role", "row", "rows", "select", "set", "some", "table",
+    "then", "true", "union", "unique", "update", "user", "values",
+    "when", "where", "window", "with",
+}
 
 # Map inferred types to SQL types for each dialect
 TYPE_MAP = {
@@ -53,14 +66,16 @@ class DDLGenerationError(Exception):
 
 
 def _sanitize_identifier(name: str) -> str:
-    """Convert arbitrary column names into safe SQL identifiers."""
+    """Convert arbitrary column names into safe SQL identifiers.
+    Reserved SQL keywords get a '_col' suffix to avoid syntax errors."""
     clean = re.sub(r"[^a-zA-Z0-9_]", "_", name.strip().lower())
     if not clean:
         clean = "col"
     if clean[0].isdigit():
         clean = f"c_{clean}"
+    if clean in SQL_RESERVED:
+        clean = f"{clean}_col"
     return clean
-
 
 def _detect_primary_key(columns: List[Dict[str, Any]]) -> Optional[str]:
     """Heuristic: first integer column named 'id' or ending with '_id'."""
