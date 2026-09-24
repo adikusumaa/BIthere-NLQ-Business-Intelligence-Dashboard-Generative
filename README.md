@@ -217,7 +217,7 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 
 ### Patch Applied — Dashboard Fixed Without Regenerating
 
-<img src="img/img3/Edit-Dashboard%20Fixed%20after%20edit.png" width="900" />
+<img src="img\img3\Edit-Dashboard-FIxed-After-Edit.png" width="900" />
 <br/>
 <em>Only the targeted chart changed. All other charts, colors, positions, and filters stay intact.</em>
 
