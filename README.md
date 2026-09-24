@@ -154,6 +154,87 @@ An abstraction layer allows the system to connect to PostgreSQL, MySQL, MongoDB,
 <em>Streaming chat interface with support for multiple conversation sessions.</em>
 </div>
 
+### Multi-Tenant Workspace & Sidebar Navigation
+
+<div align="center">
+<img src="img/img3/Workspace-Switcher.png" width="900" />
+<br/>
+<em>Workspace switcher in the top navigation — jump between tenants without reloading.</em>
+</div>
+
+### Integrations Manager — Bring Your Own Keys
+
+<div align="center">
+<img src="img/img3/Integrations-Page.png" width="900" />
+<br/>
+<em>Per-workspace API keys: input, test connectivity, rotate, and delete. All values encrypted with Fernet.</em>
+</div>
+
+### Dataset Catalog & Upload
+
+<div align="center">
+<img src="img/img3/Datasets-Page.png" width="900" />
+<br/>
+<em>Upload CSV / Excel / Parquet. Preview rows, edit column types, and drop the dataset along with its underlying table.</em>
+</div>
+
+### Knowledge Base — Schema Tab
+
+<div align="center">
+<img src="img/img3/KnowledgeBase-Schema.png" width="900" />
+<br/>
+<em>Live schema view of the connected data source, used by the RAG layer for schema-aware SQL generation.</em>
+</div>
+
+### Iterative Dashboard Editor (F-13) — Patch-Based Editing
+
+A flagship v2 feature: **edit dashboards incrementally via chat — not regenerate from scratch.** Every instruction becomes a structured patch that touches only the requested parts. Everything else stays intact.
+
+<div align="center">
+
+**Editor Overview**
+
+<img src="img/img3/DashboardEditor-Overview.png" width="900" />
+<br/>
+<em>Split view: chat panel (left), live preview (center), property panel and version history (right).</em>
+
+<br/><br/>
+
+**Before — Broken Dashboard Needs Editing**
+
+<img src="img/img3/Problem%20Dashboard%20must%20be%20Edit.png" width="440" />
+<img src="img/img3/Editor-PatchPreview.png" width="440" />
+<br/>
+<em>Left: dashboard with issue. Right: proposed patch preview in the chat panel with the patch JSON viewer.</em>
+
+<br/><br/>
+
+**Patch Applied — Dashboard Fixed Without Regenerating**
+
+<img src="img/img3/Edit-Dashboard%20Fixed%20after%20edit.png" width="900" />
+<br/>
+<em>Only the targeted chart changed. All other charts, colors, positions, and filters stay intact.</em>
+
+<br/><br/>
+
+**Live Properties Panel**
+
+<img src="img/img3/Edit-Properties.png" width="440" />
+<img src="img/img3/Editor-DragCanvas.png" width="440" />
+<br/>
+<em>Left: property panel — change title, color, chart type. Right: manual drag/resize canvas with live position badge.</em>
+
+<br/><br/>
+
+**Version History & Diff**
+
+<img src="img/img3/Editor-VersionHistory.png" width="440" />
+<img src="img/img3/Editor-DiffViewer.png" width="440" />
+<br/>
+<em>Left: version timeline with rollback per version. Right: diff viewer comparing two versions field by field.</em>
+
+</div>
+
 ### Multi-Page Dashboard & Filtering
 
 <div align="center">
@@ -201,6 +282,20 @@ An abstraction layer allows the system to connect to PostgreSQL, MySQL, MongoDB,
 <img src="img/img2/NLQDashboardComplex_2.png" width="420" />
 <br/>
 <em>Admin-only workflow for inviting new users with role assignment.</em>
+</div>
+
+### Admin — Workspace Invites & User Creation
+
+<div align="center">
+<img src="img/img3/Invites-SuperUser-Page.png" width="900" />
+<br/>
+<em>Admin-only page: send email-based invites per workspace, choose role (admin / analyst / viewer).</em>
+
+<br/><br/>
+
+<img src="img/img3/Adding%20user.png" width="900" />
+<br/>
+<em>Alternative flow: admin creates an account directly with a temporary password.</em>
 </div>
 
 ---
