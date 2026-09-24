@@ -91,6 +91,10 @@ SQL rules:
 - Optional filter tags: [[AND alias.column = {{{{tag_name}}}}]].
 - Never wrap {{{{tag_name}}}} in quotes.
 - Never fabricate column or table names. If unsure, use the schema above.
+- Column types are shown after each column name in the schema.
+- TEXT columns must be compared with quoted strings, never with bare numbers.
+- INTEGER / NUMERIC / FLOAT columns must be compared with numbers, never quoted.
+- TIMESTAMP / DATE columns must be compared with date literals or ranges.
 
 Layout grid is 24 columns wide:
 - KPI row:    [0, 0, 6, 4], [0, 6, 6, 4], [0, 12, 6, 4], [0, 18, 6, 4]

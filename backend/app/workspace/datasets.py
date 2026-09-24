@@ -158,7 +158,20 @@ async def delete_dataset(dataset_id: str) -> bool:
     logger.info(f"[SUCCESS] Dataset deleted: {dataset_id}")
     return True
 
+async def delete_schemas_for_dataset(dataset_id: str) -> int:
+    """Delete all workspace_schemas rows tied to a dataset. Returns 1 if any existed."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.delete(
+            _rest_url("workspace_schemas"),
+            headers=_headers(),
+            params={"dataset_id": f"eq.{dataset_id}"},
+        )
 
+    if response.status_code not in (200, 204):
+        raise DatasetStoreError(f"Supabase error {response.status_code}: {response.text}")
+
+    logger.info(f"[SUCCESS] Schema records deleted for dataset: {dataset_id}")
+    return 1
 # =====================================================
 # Workspace schemas
 # =====================================================

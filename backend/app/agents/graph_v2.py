@@ -106,7 +106,7 @@ async def _build_schema_hint(ctx: Optional[AgentContext]) -> str:
         for table, columns in schema.items():
             if table in INTERNAL_TABLES or table.startswith("workspace_"):
                 continue
-            cols = ", ".join(c["column"] for c in columns)
+            cols = ", ".join(f"{c['column']} {c['type']}" for c in columns)
             lines.append(f"{table}({cols})")
         return "\n".join(lines)
     except Exception as exc:

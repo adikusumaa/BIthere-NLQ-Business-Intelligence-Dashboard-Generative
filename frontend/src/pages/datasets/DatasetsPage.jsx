@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { api } from "../../services/api";
 import { useWorkspaceStore } from "../../store/workspaceStore";
 
@@ -10,6 +11,7 @@ export default function DatasetsPage() {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [uploadName, setUploadName] = useState("");
+  const [confirmTarget, setConfirmTarget] = useState(null);
   const inputRef = useRef(null);
 
   const load = async () => {
@@ -47,8 +49,14 @@ export default function DatasetsPage() {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (!confirm(`Delete dataset "${name}"?`)) return;
+  const handleDelete = (id, name) => {
+    setConfirmTarget({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmTarget) return;
+    const { id } = confirmTarget;
+    setConfirmTarget(null);
     try {
       await api.deleteDataset(activeWorkspace.id, id);
       await load();
@@ -170,6 +178,21 @@ export default function DatasetsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmTarget}
+        title="Delete dataset?"
+        message={
+          confirmTarget
+            ? `"${confirmTarget.name}"\n\nThis will permanently drop the table in the database, delete all rows, and remove the uploaded file. This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   );
 }

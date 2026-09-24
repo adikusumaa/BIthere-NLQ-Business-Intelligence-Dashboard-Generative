@@ -51,6 +51,10 @@ RULES:
   Correct:   "SELECT t.id FROM orders t"
   Incorrect: "SELECTt.id FROMorders t"
 - Wrap the denominator with NULLIF(x, 0) when dividing aggregated counts.
+- Column types are shown after each column name in the schema.
+- TEXT columns must be compared with quoted strings, never with bare numbers.
+- INTEGER / NUMERIC / FLOAT columns must be compared with numbers, never quoted.
+- TIMESTAMP / DATE columns must be compared with date literals or ranges.
 
 DIALECT: {dialect}
 {diag_notes}
