@@ -202,10 +202,16 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 
 ### Before — Broken Dashboard Needs Editing
 
-<img src="img/img3/Problem%20Dashboard%20must%20be%20Edit.png" width="440" />
-<img src="img/img3/Editor-PatchPreview.png" width="440" />
-<br/>
-<em>Left: dashboard with issue. Right: proposed patch preview in the chat panel with the patch JSON viewer.</em>
+<table>
+  <tr>
+    <td align="center"><img src="img/img3/Problem%20Dashboard%20must%20be%20Edit.png" width="440" /></td>
+    <td align="center"><img src="img/img3/Editor-PatchPreview.png" width="440" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Dashboard with issue</em></td>
+    <td align="center"><em>Proposed patch preview with JSON viewer</em></td>
+  </tr>
+</table>
 
 <br/><br/>
 
@@ -219,19 +225,31 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 
 ### Live Properties Panel
 
-<img src="img/img3/Edit-Properties.png" width="440" />
-<img src="img/img3/Editor-DragCanvas.png" width="440" />
-<br/>
-<em>Left: property panel — change title, color, chart type. Right: manual drag/resize canvas with live position badge.</em>
+<table>
+  <tr>
+    <td align="center"><img src="img/img3/Edit-Properties.png" width="440" /></td>
+    <td align="center"><img src="img/img3/Editor-DragCanvas.png" width="440" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Property panel — change title, color, chart type</em></td>
+    <td align="center"><em>Manual drag/resize canvas with live position badge</em></td>
+  </tr>
+</table>
 
 <br/><br/>
 
 ### Version History & Diff
 
-<img src="img/img3/Editor-VersionHistory.png" width="440" />
-<img src="img/img3/Editor-DiffViewer.png" width="440" />
-<br/>
-<em>Left: version timeline with rollback per version. Right: diff viewer comparing two versions field by field.</em>
+<table>
+  <tr>
+    <td align="center"><img src="img/img3/Editor-VersionHistory.png" width="440" /></td>
+    <td align="center"><img src="img/img3/Editor-DiffViewer.png" width="440" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Version timeline with rollback per version</em></td>
+    <td align="center"><em>Diff viewer comparing two versions field by field</em></td>
+  </tr>
+</table>
 
 </div>
 
@@ -278,10 +296,16 @@ A flagship v2 feature: **edit dashboards incrementally via chat — not regenera
 <br/>
 <em>User management with role control, invitation flow, and audit visibility.</em>
 <br/><br/>
-<img src="img/img2/NLQDashboardComplex.png" width="420" />
-<img src="img/img2/NLQDashboardComplex_2.png" width="420" />
-<br/>
-<em>Admin-only workflow for inviting new users with role assignment.</em>
+<table>
+  <tr>
+    <td align="center"><img src="img/img2/NLQDashboardComplex.png" width="420" /></td>
+    <td align="center"><img src="img/img2/NLQDashboardComplex_2.png" width="420" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Invite new users with role assignment</em></td>
+    <td align="center"><em>Role selection workflow</em></td>
+  </tr>
+</table>
 </div>
 
 ### Admin — Workspace Invites & User Creation
